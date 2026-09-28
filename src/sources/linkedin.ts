@@ -56,7 +56,7 @@ export async function search(o: SearchOpts): Promise<Card[]> {
   return out;
 }
 
-export async function detail(card: Card, workType?: number): Promise<Job> {
+export async function detail(card: Card, workType?: number, nearHome = false): Promise<Job> {
   const html = (await get(`${BASE}/jobPosting/${card.id}`)) ?? "";
   const desc = html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>/)?.[1];
   const salary = html.match(/salary[^>]*>\s*([^<]*£[^<]*)</)?.[1]?.trim() ?? null;
@@ -73,5 +73,6 @@ export async function detail(card: Card, workType?: number): Promise<Job> {
     posted_at: card.posted,
     description: desc ? text(desc) : null,
     is_agency: /staffing|recruit/i.test(industry) ? 1 : 0,
+    near_home: nearHome ? 1 : 0,
   };
 }

@@ -6,7 +6,7 @@ export type Settings = {
   targetRoles: string[]; seniority: "junior" | "mid" | "senior" | "staff" | "lead" | "any";
   strongSkills: string[]; weakSkills: string[]; searchQueries: string[];
   country: Country; homeCity: string; commutable: string[];
-  remotePreference: "remote" | "hybrid" | "any"; maxOfficeDays: number;
+  remotePreference: "" | "remote" | "hybrid" | "onsite" | "any"; maxOfficeDays: number;
   salaryMin: number | null; needsSponsorship: boolean; sponsorSalaryFloor: number | null;
   excludeCompanies: string[]; writingRules: string; scanHour: number;
 };

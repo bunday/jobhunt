@@ -60,9 +60,15 @@ export async function runScan(opts: { postedWithin?: number; log?: (m: string) =
   const postedWithin = opts.postedWithin ?? 7 * 86400;
   const runs: linkedin.SearchOpts[] = [];
   for (const kw of st.searchQueries.slice(0, 10)) {
-    // remote jobs suit everyone; hybrid near home gets a deeper search unless the user wants remote only
-    runs.push({ keywords: kw, location: cc.linkedin, workType: 2, postedWithin, pages: st.remotePreference === "hybrid" ? 3 : 5 });
-    if (st.homeCity) runs.push({ keywords: kw, location: `${st.homeCity}, ${cc.linkedin}`, workType: 3, distanceMiles: st.remotePreference === "remote" ? 30 : 50, postedWithin, pages: st.remotePreference === "remote" ? 1 : 3 });
+    const pref = st.remotePreference;
+    // nationwide remote search, unless the work is on-site
+    if (pref !== "onsite") runs.push({ keywords: kw, location: cc.linkedin, workType: 2, postedWithin, pages: pref === "remote" ? 5 : 3 });
+    // search around home: any working pattern for on-site/hybrid/any people; a light hybrid search for remote-first people
+    if (st.homeCity) {
+      const near = `${st.homeCity}, ${cc.linkedin}`;
+      if (pref === "remote") runs.push({ keywords: kw, location: near, workType: 3, distanceMiles: 30, postedWithin, pages: 1 });
+      else runs.push({ keywords: kw, location: near, distanceMiles: pref === "onsite" ? 25 : 50, postedWithin, pages: pref === "onsite" ? 5 : 3 });
+    }
   }
 
   for (const [i, run] of runs.entries()) {
@@ -70,9 +76,9 @@ export async function runScan(opts: { postedWithin?: number; log?: (m: string) =
     let cards: Awaited<ReturnType<typeof linkedin.search>> = [];
     try { cards = await linkedin.search(run); } catch (e) { say(`linkedin "${run.keywords}" failed: ${(e as Error).message}`); }
     const fresh = cards.filter((c) => !excluded(c.company) && !jobExists("linkedin", c.id));
-    say(`linkedin "${run.keywords}" [${run.workType === 2 ? `remote ${cc.name}` : `hybrid near ${st.homeCity}`}]: ${cards.length} results, ${fresh.length} new`);
+    say(`linkedin "${run.keywords}" [${run.distanceMiles ? `within ${run.distanceMiles} miles of ${st.homeCity}` : `remote, ${cc.name}`}]: ${cards.length} results, ${fresh.length} new`);
     for (const c of fresh) {
-      try { add(await linkedin.detail(c, run.workType)); } catch (e) { say(`  detail ${c.id} failed: ${(e as Error).message}`); }
+      try { add(await linkedin.detail(c, run.workType, !!run.distanceMiles)); } catch (e) { say(`  detail ${c.id} failed: ${(e as Error).message}`); }
       await sleep(1500);
     }
     await sleep(3000);

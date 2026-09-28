@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   posted_at      TEXT,
   description    TEXT,
   is_agency      INTEGER DEFAULT 0,
+  near_home      INTEGER DEFAULT 0,        -- found by a search around the user's home city
   sponsor_status TEXT,                     -- licensed | likely | not_found | agency | n/a
   sponsor_name   TEXT,
   sponsor_text   TEXT,                     -- offers | refuses | none (what the ad says about visa sponsorship)
@@ -82,6 +83,12 @@ CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS jobs_score ON jobs(score);
 `);
 
+// columns added after the first release
+{
+  const cols = db.query("PRAGMA table_info(jobs)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "near_home")) db.exec("ALTER TABLE jobs ADD COLUMN near_home INTEGER DEFAULT 0");
+}
+
 export type Job = {
   id?: number;
   source: string;
@@ -97,6 +104,7 @@ export type Job = {
   posted_at?: string | null;
   description?: string | null;
   is_agency?: number;
+  near_home?: number;
   sponsor_status?: string | null;
   sponsor_name?: string | null;
   sponsor_text?: string | null;
@@ -111,7 +119,7 @@ export function jobExists(source: string, sourceId: string): boolean {
 
 const COLS = [
   "source", "source_id", "url", "title", "company", "location", "work_mode", "salary_text",
-  "salary_min", "salary_max", "posted_at", "description", "is_agency", "sponsor_status",
+  "salary_min", "salary_max", "posted_at", "description", "is_agency", "near_home", "sponsor_status",
   "sponsor_name", "sponsor_text", "score", "reasons",
 ] as const;
 
@@ -120,7 +128,8 @@ export function upsertJob(j: Job): { id: number; added: boolean } {
   const existing = db.query("SELECT id FROM jobs WHERE source = ? AND source_id = ?").get(j.source, j.source_id) as { id: number } | null;
   const vals = COLS.map((c) => (j as Record<string, unknown>)[c] ?? null);
   if (existing) {
-    const set = COLS.map((c) => `${c} = ?`).join(", ");
+    // near_home only ever goes up: the same job may also turn up in the nationwide remote search
+    const set = COLS.map((c) => (c === "near_home" ? "near_home = MAX(COALESCE(near_home, 0), COALESCE(?, 0))" : `${c} = ?`)).join(", ");
     db.query(`UPDATE jobs SET ${set}, updated_at = datetime('now') WHERE id = ?`).run(...(vals as never[]), existing.id);
     return { id: existing.id, added: false };
   }

@@ -64,11 +64,13 @@ export function WhereForm({ value, onChange, countries }: SettingsProps & { coun
         <TagInput value={value.commutable} onChange={(commutable) => onChange({ commutable })} placeholder="Leeds" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Working pattern">
-          <Select value={value.remotePreference} onChange={(e) => onChange({ remotePreference: e.target.value as Settings["remotePreference"] })}>
+        <Field label="How you work" hint={value.remotePreference ? undefined : "Required: this decides where we search."}>
+          <Select value={value.remotePreference} onChange={(e) => onChange({ remotePreference: e.target.value as Settings["remotePreference"] })} className={value.remotePreference ? "" : "border-primary"}>
+            <option value="" disabled>Choose…</option>
+            <option value="onsite">On-site (e.g. hospital, shop, site work)</option>
+            <option value="hybrid">Hybrid: some days in an office</option>
             <option value="remote">Remote preferred</option>
-            <option value="hybrid">Hybrid is fine</option>
-            <option value="any">Anything</option>
+            <option value="any">Any of these</option>
           </Select>
         </Field>
         <Field label="Most office days a week, if far away" hint="Jobs asking for more are flagged, not hidden.">

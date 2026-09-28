@@ -21,7 +21,7 @@ const REFUSES = [
 ];
 // "We do sponsor visas! However, we aren't able to sponsor for every role": the qualifier makes it an offer
 const PARTIAL = /(every|all|each) (role|position|candidate)|some roles/i;
-const US_ONLY = /\b(u\.?s\.?|us|american|h-?1b)\b[^.]{0,20}(visa )?sponsor/i;
+const US_ONLY = /(u\.s\.|\bus\b|united states|american|h-?1b)[^.\n]{0,25}sponsor/i;
 // "must have the right to work in the UK" is often boilerplate: a soft flag, not a no
 const RTW = /must (already )?have (the )?(full |existing |unrestricted |current )?(legal )?right to work|(full|unrestricted|existing) right to work/i;
 const OFFERS = [
@@ -31,16 +31,40 @@ const OFFERS = [
   /skilled worker visa/i,
 ];
 
-export function parseSalary(s: string | null | undefined): { min: number | null; max: number | null; daily: boolean } {
-  if (!s) return { min: null, max: null, daily: false };
-  const daily = /per day|\/day|a day|p\/d|day rate|daily|per hour|\/hr|an hour|hourly/i.test(s);
-  // "k" form first, or "£80K" is read as £80; £ $ € and ISO codes
-  const nums = [...s.matchAll(/(?:[£$€]|\b(?:gbp|usd|eur|cad)\s?)\s?(\d{2,3}(?:\.\d)?\s?k\b|\d{2,3}(?:,\d{3})+|\d{4,6})/gi)].map((m) => {
-    const v = m[1].replace(/,/g, "").toLowerCase();
+const HOURS_PER_YEAR = 37.5 * 52;
+const MONEY = /(?:[£$€]|\b(?:gbp|usd|eur|cad)\s?)\s?(\d{1,3}(?:\.\d{1,2})?\s?k\b|\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+(?:\.\d{1,2})?)/gi;
+
+/**
+ * Read a yearly salary from text. Hourly rates are converted to a year (37.5h x 52 weeks); day rates are flagged
+ * (contract work); amounts that can't be a yearly salary (bonuses, allowances) are ignored.
+ */
+export function parseSalary(s: string | null | undefined): { min: number | null; max: number | null; daily: boolean; hourly: boolean } {
+  if (!s) return { min: null, max: null, daily: false, hourly: false };
+  const hourly = /per hour|\/\s?(hr|hour)\b|an hour|hourly|p\/h\b|ph\b/i.test(s);
+  const daily = !hourly && /per day|\/\s?day\b|a day\b|p\/d\b|day rate|daily rate/i.test(s);
+  let nums = [...s.matchAll(MONEY)].map((m) => {
+    const v = m[1].replace(/[,\s]/g, "").toLowerCase();
     return v.endsWith("k") ? Number.parseFloat(v) * 1000 : Number(v);
-  }).filter((n) => n >= 100);
-  if (!nums.length) return { min: null, max: null, daily };
-  return { min: Math.min(...nums), max: Math.max(...nums), daily };
+  });
+  if (hourly) nums = nums.filter((n) => n >= 5 && n < 300).map((n) => Math.round(n * HOURS_PER_YEAR));
+  else if (daily) nums = nums.filter((n) => n >= 50 && n < 5000);
+  else nums = nums.filter((n) => n >= 10_000 && n < 2_000_000); // anything smaller is a bonus or allowance, not a salary
+  if (!nums.length) return { min: null, max: null, daily, hourly };
+  return { min: Math.min(...nums), max: Math.max(...nums), daily, hourly };
+}
+
+/** Find the salary in an ad: prefer money mentioned next to salary words, skip bonuses, allowances and relocation. */
+export function salaryFromDescription(desc: string): string | null {
+  const hits = [...desc.matchAll(MONEY)].map((m) => {
+    const at = m.index!;
+    const near = desc.slice(Math.max(0, at - 40), at + m[0].length + 30);   // salary words can be a little way off
+    const tight = desc.slice(Math.max(0, at - 20), at + m[0].length + 25);  // what the amount itself is for
+    const good = /salary|per annum|p\.?a\.?\b|a year|per year|annual|per hour|an hour|hourly|base pay|pay range|compensation|up to|\d\s*-\s*[£$€]/i.test(near) ? 2 : 0;
+    const bad = /bonus|allowance|relocation|referral|refer-a-friend|sign[- ]?on|welcome|golden hello|pension|voucher|budget|stipend/i.test(tight) ? 3 : 0;
+    return { text: desc.slice(Math.max(0, at - 5), at + m[0].length + 45), score: good - bad };
+  }).filter((h) => h.score >= 0);
+  if (!hits.length) return null;
+  return hits.sort((a, b) => b.score - a.score)[0].text;
 }
 
 const WORD_NUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, once: 1, twice: 2 };
@@ -117,15 +141,23 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
 
   // location / work mode. Job-board "remote" labels are only a hint: the ad text decides. Flag, never filter.
   const loc = `${j.location ?? ""} ${title}`.toLowerCase();
-  const nearby = [st.homeCity, ...st.commutable].filter(Boolean).some((p) => loc.includes(p.toLowerCase()));
+  const nearby = !!j.near_home || [st.homeCity, ...st.commutable].filter(Boolean).some((p) => loc.includes(p.toLowerCase()));
   const officeDays = officeDaysPerWeek(desc);
   const noRemote = /fully remote( working| work)? (is )?not (available|possible|an option|offered)|not (a )?(fully )?remote (role|position)|(on-?site|in[- ]office|office[- ]based) (role|position)|fully on-?site|5 days (a|per) week (in|at|from) (the |our )?office|full[- ]time in (the |our )?office/.test(desc);
   const remoteText = !noRemote && /fully remote|100% remote|remote[- ]first|remote[- ]friendly|remote \(|remote (in|across|within)|work from anywhere|or remote|work where you work best|flexibility to work from home|no mandated requirement on office attendance/.test(`${desc} ${loc}`);
   const elsewhere = OTHER_PLACES.test(loc) || Object.entries(COUNTRIES).filter(([c]) => c !== st.country).some(([, o]) => o.places.test(loc));
-  const abroad = elsewhere && !cur.places.test(loc) || /must be (based|located) in (?!the same)/.test(desc) && !cur.places.test(desc.match(/must be (based|located) in [^.]{0,40}/)?.[0] ?? "");
+  // "must be based in X" / "relocate to X": abroad when X is another country
+  const otherCountry = (t: string) => (OTHER_PLACES.test(t) || Object.entries(COUNTRIES).some(([c, o]) => c !== st.country && o.places.test(t))) && !cur.places.test(t);
+  const required = [...desc.matchAll(/(?:must be (?:based|located) in|relocat\w* to|relocation to|based in our) ([^.\n]{0,40})/g)].map((m) => m[1]);
+  const abroad = (elsewhere && !cur.places.test(loc)) || required.some(otherCountry);
   const maxDays = st.remotePreference === "remote" ? Math.min(st.maxOfficeDays, 1) : st.maxOfficeDays;
   if (abroad) { s -= 40; reasons.push(`− based outside ${cur.name}`); }
-  else if (nearby) { s += 8; reasons.push(`+ commutable from ${home}`); }
+  else if (nearby) { s += 10; reasons.push(`+ near ${home}`); }
+  else if (st.remotePreference === "onsite") {
+    // on-site work: distance is what matters; a remote job is still fine, a far-away on-site one isn't
+    if (remoteText || officeDays === 0) { s += 6; reasons.push("~ remote role (you chose on-site, but it may still suit you)"); }
+    else { s -= 25; reasons.push(`− not near ${home}${j.location ? ` (${j.location})` : ""}`); }
+  }
   else if (officeDays !== null && officeDays > Math.max(maxDays, 3)) {
     s -= 30; reasons.push(`− ${officeDays} office days/week, not near ${home}`);
   } else if (noRemote && officeDays === null) {
@@ -141,7 +173,7 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   else { reasons.push("~ office pattern not stated, check"); }
 
   // salary (flags only: nothing is filtered out)
-  const salary = parseSalary(j.salary_text ?? desc.match(/(?:[£$€]|\b(?:gbp|usd|eur|cad)\b)[^\n]{0,60}/)?.[0]);
+  const salary = parseSalary(j.salary_text ?? salaryFromDescription(j.description ?? ""));
   if (salary.daily || /\b(contract|contractor|outside ir35|inside ir35|ftc|fixed[- ]term)\b/.test(title) || /day rate|outside ir35|inside ir35/.test(desc)) {
     s -= st.needsSponsorship ? 40 : 15; reasons.push(`− contract / day-rate${st.needsSponsorship ? " (contracts rarely sponsor)" : ""}`);
   } else if (salary.max) {
@@ -149,7 +181,7 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
     const floor = st.needsSponsorship ? st.sponsorSalaryFloor : null;
     if (floor && salary.max < floor) { s -= 40; reasons.push(`− pays under the ${cur.symbol}${floor.toLocaleString()} visa salary floor`); }
     else if (st.salaryMin && salary.max < st.salaryMin) { s -= 4; reasons.push(`~ salary ${band} tops out under your ${money(st.salaryMin)} minimum`); }
-    else { s += 8; reasons.push(`+ salary ${band}${st.salaryMin ? ` reaches your ${money(st.salaryMin)} minimum` : ""}`); }
+    else { s += 8; reasons.push(`+ salary ${band}${salary.hourly ? " a year (from the hourly rate)" : ""}${st.salaryMin ? ` reaches your ${money(st.salaryMin)} minimum` : ""}`); }
     if (floor && salary.min && salary.min < floor && salary.max >= floor) reasons.push(`~ bottom of range is under the ${cur.symbol}${floor.toLocaleString()} visa floor: the offer must land at or above it`);
   }
 
@@ -172,5 +204,8 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   } else if (agency) reasons.push("~ recruiter post: the employer is hidden");
 
   if (j.source === "adzuna" && (j.description ?? "").length < 700) reasons.push("~ snippet only: open the ad for full details (sponsorship and office days may be missing)");
-  return { score: Math.max(0, Math.min(100, s)), reasons, sponsorText, salary, agency };
+  // Scale against the best score a job could get with this user's settings, so "70+ = strong" means the same for
+  // everyone. Sponsorship only adds to the maximum for people who need it; it never counts for anyone else.
+  const best = 20 + (st.targetRoles.length ? 10 : 0) + (st.seniority !== "any" ? 10 : 0) + (st.strongSkills.length ? 22 : 0) + 10 + 8 + (st.needsSponsorship ? 30 : 0);
+  return { score: Math.max(0, Math.min(100, Math.round((s * 100) / best))), reasons, sponsorText, salary, agency };
 }

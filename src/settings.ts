@@ -44,7 +44,7 @@ export type Settings = {
   country: CountryCode;
   homeCity: string;
   commutable: string[];         // towns/cities you'd travel to for hybrid work
-  remotePreference: "remote" | "hybrid" | "any";
+  remotePreference: "" | "remote" | "hybrid" | "onsite" | "any"; // "" = not chosen yet (setup requires a choice)
   maxOfficeDays: number;        // for offices outside your commutable area
   // money and eligibility
   salaryMin: number | null;     // flagged, never filtered
@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   setupComplete: false,
   name: "", email: "", phone: "", links: [],
   targetRoles: [], seniority: "senior", strongSkills: [], weakSkills: [], searchQueries: [],
-  country: "gb", homeCity: "", commutable: [], remotePreference: "remote", maxOfficeDays: 2,
+  country: "gb", homeCity: "", commutable: [], remotePreference: "", maxOfficeDays: 2,
   salaryMin: null, needsSponsorship: false, sponsorSalaryFloor: null, excludeCompanies: [],
   writingRules: "", scanHour: 7,
 };
