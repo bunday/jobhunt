@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends chromium popple
   && rm -rf /var/lib/apt/lists/*
 # Optional: Claude Code CLI, only needed for AI_PROVIDER=claude-cli (a Claude subscription instead of an API key)
 ARG INSTALL_CLAUDE_CLI=false
-RUN if [ "$INSTALL_CLAUDE_CLI" = "true" ]; then bun add -g @anthropic-ai/claude-code && ln -sf "$(bun pm bin -g)/claude" /usr/local/bin/claude; fi
+RUN if [ "$INSTALL_CLAUDE_CLI" = "true" ]; then bun add -g @anthropic-ai/claude-code && claude --version; fi
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 COPY src ./src

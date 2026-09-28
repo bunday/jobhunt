@@ -11,6 +11,8 @@ services:
     env_file: .env
     environment:
       TZ: ${TZ:-Europe/London}
+      # the app always listens on 3800 inside the container; PORT in .env only changes the port on your machine
+      PORT: "3800"
     volumes:
       # your database and generated documents live here, on your machine
       - ./data:/app/data
