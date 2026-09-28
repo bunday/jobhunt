@@ -67,6 +67,7 @@ export const api = {
   saveSettings: (s: Partial<Settings>) => req<Settings>("/api/settings", json("PUT", s)),
   saveCv: (cv: MasterCV) => req<{ ok: boolean }>("/api/cv", json("PUT", cv)),
   saveFactsText: (text: string) => req<{ ok: boolean }>("/api/facts-text", json("PUT", { text })),
+  reset: (confirm: string) => req<{ ok: boolean }>("/api/reset", json("POST", { confirm })),
   completeSetup: () => req<{ ok: boolean; error?: string }>("/api/setup/complete", { method: "POST" }),
 
   overview: () => req<Overview>("/api/overview"),

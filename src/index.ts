@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { aiStatus } from "./ai";
 import { fileName, htmlToPdf, renderLetterHtml, renderPdf } from "./cv";
 import { importCv, pdfToText } from "./cvimport";
@@ -85,6 +85,19 @@ const app = new Elysia()
     startScan(14); // first scan looks back two weeks
     return { ok: true };
   })
+  // Start over: delete everything personal (jobs, applications, answers, facts, settings, CV, documents) and return to setup.
+  // Sponsor register caches are public data and are kept.
+  .post("/api/reset", ({ body, set }) => {
+    if (body.confirm !== "RESET") { set.status = 400; return { error: "Type RESET to confirm" }; }
+    const busy = (db.query("SELECT (SELECT COUNT(*) FROM jobs WHERE prep_state = 'running') + (SELECT COUNT(*) FROM answers WHERE polish_state = 'running') n").get() as { n: number }).n;
+    if (scanning || busy) { set.status = 409; return { error: "A search or an AI task is running. Wait for it to finish, then try again." }; }
+    db.transaction(() => { for (const t of ["events", "answers", "facts", "jobs", "scans", "kv"]) db.run(`DELETE FROM ${t}`); })();
+    for (const f of readdirSync(OUT_DIR)) if (f !== "specs") rmSync(`${OUT_DIR}/${f}`, { force: true, recursive: true });
+    for (const f of readdirSync(`${OUT_DIR}/specs`)) rmSync(`${OUT_DIR}/specs/${f}`, { force: true });
+    progress = null;
+    db.run("VACUUM");
+    return { ok: true };
+  }, { body: t.Object({ confirm: t.String() }) })
   .get("/api/master-cv.pdf", async ({ set }) => {
     const out = `${OUT_DIR}/master.pdf`;
     await renderPdf({}, out);

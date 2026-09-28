@@ -31,6 +31,7 @@ export function Settings({ initial, onSaved }: { initial: SetupData; onSaved: ()
       <Section title="Extra facts and writing rules"><FactsForm value={settings} onChange={patch} facts={facts} onFacts={setFacts} /></Section>
       <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur"><Save /></div>
       <MyFacts />
+      <DangerZone onReset={onSaved} />
       <Card>
         <CardHeader><CardTitle>AI</CardTitle><CardDescription>Set in your .env file.</CardDescription></CardHeader>
         <CardContent className="text-sm">{initial.ai.configured ? <>Using <strong>{initial.ai.provider}</strong>, model <strong>{initial.ai.model}</strong>.</> : <span className="text-destructive">Not configured: {initial.ai.problem}</span>}</CardContent>
@@ -69,5 +70,30 @@ function MyFacts() {
         </ul>
       )}
     </Section>
+  );
+}
+
+function DangerZone({ onReset }: { onReset: () => void }) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const wipe = async () => {
+    setBusy(true); setError("");
+    try { await api.reset(text); onReset(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader>
+        <CardTitle>Start over</CardTitle>
+        <CardDescription className="mt-1">Permanently deletes everything: your jobs, applications, notes, answers, facts, settings, master CV and every generated PDF. You'll go back to setup. This can't be undone.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-3">
+        <Input className="w-56" placeholder="Type RESET to confirm" value={text} onChange={(e) => setText(e.target.value)} />
+        <Button variant="destructive" disabled={text !== "RESET" || busy} onClick={wipe}>{busy ? "Deleting…" : "Delete everything and start over"}</Button>
+        {error && <span className="text-sm text-destructive">{error}</span>}
+      </CardContent>
+    </Card>
   );
 }
