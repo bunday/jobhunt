@@ -44,7 +44,7 @@ export type Overview = {
   counts: Record<string, number>;
   applications: { id: number; title: string; company: string; status: string; applied_at: string | null; cv_path: string | null; score: number; last_event: string; updated_at: string }[];
   attention: { kind: string; text: string; job_id?: number }[];
-  strongNew: number; lastScan: { started: string; found: number; added: number } | null; scanning: boolean;
+  strongNew: number; pool: { total: number; fresh: number; good: number; strong: number; today: number }; lastScan: { started: string; found: number; added: number } | null; scanning: boolean;
 };
 export type ScanStatus = { scanning: boolean; progress: { stage: string; found: number; added: number } | null; lastScan: { started: string; finished: string; found: number; added: number } | null };
 

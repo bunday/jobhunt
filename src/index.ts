@@ -122,8 +122,11 @@ const app = new Elysia()
     const untailored = applications.filter((a) => a.status === "shortlisted" && !a.cv_path).length;
     if (untailored) attention.push({ kind: "tailor", text: `${untailored} shortlisted job${untailored > 1 ? "s" : ""} not prepared yet` });
     const strongNew = (db.query("SELECT COUNT(*) n FROM jobs WHERE status = 'new' AND score >= 60").get() as { n: number }).n;
+    // the whole pool the scanner has found (duplicates are hidden, so they don't count)
+    const pool = db.query(`SELECT COUNT(*) total, SUM(status = 'new') fresh, SUM(status = 'new' AND score >= 50) good, SUM(status = 'new' AND score >= 70) strong,
+      SUM(first_seen >= datetime('now', '-1 day')) today FROM jobs WHERE status != 'duplicate'`).get() as { total: number; fresh: number; good: number; strong: number; today: number };
     const lastScan = db.query("SELECT started, found, added FROM scans WHERE finished IS NOT NULL ORDER BY id DESC LIMIT 1").get();
-    return { counts, applications, attention, strongNew, lastScan, scanning: !!scanning };
+    return { counts, applications, attention, strongNew, pool, lastScan, scanning: !!scanning };
   })
 
   // ---------- jobs ----------

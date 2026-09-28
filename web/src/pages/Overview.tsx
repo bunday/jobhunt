@@ -37,6 +37,31 @@ export function Overview({ go, openJob }: { go: (tab: string) => void; openJob: 
   return (
     <div className="grid gap-5">
       <p className="text-lg font-medium">{story}</p>
+      <Card>
+        <CardContent className="grid gap-4 pt-5 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              ["Jobs in your pool", o.pool.total ?? 0, "text-foreground"],
+              ["New to review", o.pool.fresh ?? 0, "text-foreground"],
+              ["Good matches (50+)", o.pool.good ?? 0, "text-primary"],
+              ["Strong matches (70+)", o.pool.strong ?? 0, "text-success"],
+            ].map(([label, n, tone]) => (
+              <div key={label as string}>
+                <div className={cn("text-2xl font-semibold tabular-nums", tone as string)}>{n as number}</div>
+                <div className="text-xs text-muted-foreground">{label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <Button onClick={() => go("discover")}>Review jobs</Button>
+            <Button variant="outline" disabled={o.scanning} onClick={async () => { await api.scan(); load(); }}>{o.scanning ? <Loader2 className="animate-spin" /> : <RefreshCw />}{o.scanning ? "Searching…" : "Search now"}</Button>
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            {o.lastScan ? `Last search ${ago(o.lastScan.started)}: ${o.lastScan.added} new of ${o.lastScan.found} seen. ` : "No search has finished yet. "}
+            {o.pool.today ? `${o.pool.today} added in the last 24 hours. ` : ""}Searches run daily.
+          </p>
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {STAGES.map((s) => (
           <button key={s.key} type="button" onClick={() => go(s.key === "rejected" ? "closed" : "applications")} className="cursor-pointer rounded-lg border bg-card p-3 text-center shadow-xs hover:bg-muted/50">
@@ -67,16 +92,6 @@ export function Overview({ go, openJob }: { go: (tab: string) => void; openJob: 
           <CardContent>{preparing.map(Row)}</CardContent>
         </Card>
       )}
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-4 pt-5">
-          <div className="flex-1">
-            <p className="text-sm"><strong>{o.strongNew}</strong> good new matches waiting in Discover</p>
-            {o.lastScan && <p className="text-xs text-muted-foreground">Last search {ago(o.lastScan.started)}: {o.lastScan.added} new of {o.lastScan.found} seen. Runs daily.</p>}
-          </div>
-          <Button variant="outline" onClick={() => go("discover")}>Open Discover</Button>
-          <Button variant="ghost" disabled={o.scanning} onClick={async () => { await api.scan(); load(); }}>{o.scanning ? <Loader2 className="animate-spin" /> : <RefreshCw />}{o.scanning ? "Searching…" : "Search now"}</Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
