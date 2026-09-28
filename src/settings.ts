@@ -2,7 +2,7 @@
 // Nothing here is hard-coded to one person: every personal detail comes from these records.
 import { kvGet, kvSet } from "./db";
 
-export type CountryCode = "gb" | "nl" | "us" | "ie" | "ca";
+export type CountryCode = "gb" | "nl" | "us" | "ie" | "ca" | "tr";
 
 export const COUNTRIES: Record<CountryCode, {
   name: string; currency: string; symbol: string;
@@ -22,6 +22,8 @@ export const COUNTRIES: Record<CountryCode, {
     places: /\b(ireland|dublin|cork|galway|limerick|waterford)\b/i },
   ca: { name: "Canada", currency: "CAD", symbol: "$", linkedin: "Canada", apple: "canada-CAN", adzuna: "ca", sponsorRegister: false,
     places: /\b(canada|toronto|vancouver|montreal|ottawa|calgary|waterloo|edmonton|ontario|british columbia|quebec)\b/i },
+  tr: { name: "Türkiye", currency: "TRY", symbol: "₺", linkedin: "Türkiye", apple: null, adzuna: null, sponsorRegister: false,
+    places: /\b(turkey|türkiye|turkiye|istanbul|İstanbul|ankara|izmir|bursa|antalya|kocaeli|konya|gaziantep|eskişehir|eskisehir|mersin|kayseri|adana|samsun|trabzon|sakarya|tekirdağ|denizli)\b/i },
 };
 
 /** Countries outside the supported five, so "Germany (Remote)" isn't mistaken for "remote in your country". */

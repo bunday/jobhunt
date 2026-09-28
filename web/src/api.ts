@@ -1,4 +1,4 @@
-export type Country = "gb" | "nl" | "us" | "ie" | "ca";
+export type Country = "gb" | "nl" | "us" | "ie" | "ca" | "tr";
 
 export type Settings = {
   setupComplete: boolean;

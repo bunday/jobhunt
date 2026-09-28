@@ -58,7 +58,7 @@ export function Setup({ initial, onDone }: { initial: SetupData; onDone: () => v
             ...cur,
             name: cur.name || s.name, email: cur.email || s.email, phone: cur.phone || s.phone,
             links: cur.links.length ? cur.links : s.links, homeCity: cur.homeCity || s.homeCity,
-            country: (["gb", "nl", "us", "ie", "ca"].includes(s.country) ? s.country : cur.country) as Country,
+            country: (["gb", "nl", "us", "ie", "ca", "tr"].includes(s.country) ? s.country : cur.country) as Country,
             targetRoles: cur.targetRoles.length ? cur.targetRoles : s.targetRoles,
             searchQueries: cur.searchQueries.length ? cur.searchQueries : s.targetRoles.map((r) => r.toLowerCase()),
             seniority: s.seniority ?? cur.seniority,

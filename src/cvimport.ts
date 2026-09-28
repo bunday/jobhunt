@@ -32,7 +32,7 @@ Return:
     "name": string, "email": string, "phone": string,
     "links": string[],                   // linkedin / github / portfolio, without https://
     "homeCity": string,                  // city only
-    "country": "gb" | "us" | "ca" | "au" | "ie" | "other",
+    "country": "gb" | "nl" | "us" | "ie" | "ca" | "tr" | "other",
     "currentEmployer": string,           // company of the current role, "" if none is current
     "targetRoles": string[],             // 2-4 job titles this person should search for, at their level (e.g. "Senior Backend Engineer")
     "seniority": "junior" | "mid" | "senior" | "staff" | "lead",

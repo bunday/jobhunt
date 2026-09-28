@@ -13,7 +13,7 @@ Everything runs on your own machine. Your CV, applications and notes never leave
 - **Polishes application-form answers** from your rough drafts.
 - **Tracks everything**: shortlisted, applied, interview, offer, with dates and notes.
 
-Supported countries: **United Kingdom, Netherlands, United States, Ireland, Canada.**
+Supported countries: **United Kingdom, Netherlands, United States, Ireland, Canada, Türkiye.** (In Türkiye, jobs come mainly from LinkedIn and remote roles; Adzuna and Apple don't cover it.)
 
 ## Quick start
 
