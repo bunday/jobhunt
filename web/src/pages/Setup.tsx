@@ -181,8 +181,11 @@ function Finish({ settings, countries, onDone }: { settings: Settings; countries
       <ul className="mb-5 grid gap-1 text-sm">
         <li><span className="text-muted-foreground">Looking for:</span> {settings.targetRoles.join(", ")}</li>
         <li><span className="text-muted-foreground">In:</span> {countries[settings.country].name}{settings.homeCity ? `, near ${settings.homeCity}` : ""} · {({ onsite: "on-site", hybrid: "hybrid", remote: "remote preferred", any: "any working pattern" } as Record<string, string>)[settings.remotePreference] ?? ""}</li>
-        {settings.salaryMin && <li><span className="text-muted-foreground">Minimum salary:</span> {countries[settings.country].symbol}{settings.salaryMin.toLocaleString()}</li>}
-        <li><span className="text-muted-foreground">Sponsorship:</span> {settings.needsSponsorship ? "needed" : "not needed"}</li>
+        {settings.extraCountries.length > 0 && <li><span className="text-muted-foreground">Also searching:</span> {settings.extraCountries.map((c) => countries[c].name).join(", ")} (would relocate)</li>}
+        {[settings.country, ...settings.extraCountries].map((c) => {
+          const p = settings.perCountry[c];
+          return <li key={c}><span className="text-muted-foreground">{countries[c].name}:</span> {p?.salaryMin ? `minimum ${countries[c].symbol}${p.salaryMin.toLocaleString()}` : "no minimum salary"}, {p?.needsSponsorship ? "sponsorship needed" : "no sponsorship needed"}</li>;
+        })}
       </ul>
       {!started && <Button size="lg" onClick={go}>Save and find jobs</Button>}
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}

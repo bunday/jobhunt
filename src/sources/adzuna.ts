@@ -3,7 +3,7 @@
 // so Adzuna jobs are snippet-only: the card asks the user to paste the full ad before Prepare.
 import type { Job } from "../db";
 import { titleWanted } from "../match";
-import { COUNTRIES, getSettings } from "../settings";
+import { COUNTRIES, type CountryCode, getSettings, searchCountries } from "../settings";
 
 const ID = process.env.ADZUNA_APP_ID;
 const KEY = process.env.ADZUNA_APP_KEY;
@@ -21,9 +21,16 @@ const strip = (h: string) => h.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").r
 
 export async function scanAdzuna(say: (m: string) => void, maxDaysOld = 7): Promise<Job[]> {
   if (!ID || !KEY) { say("adzuna: skipped (no ADZUNA_APP_ID / ADZUNA_APP_KEY)"); return []; }
+  const out: Job[] = [];
+  for (const c of searchCountries()) out.push(...(await scanAdzunaCountry(c, say, maxDaysOld)));
+  return out;
+}
+
+async function scanAdzunaCountry(country: CountryCode, say: (m: string) => void, maxDaysOld: number): Promise<Job[]> {
+  if (!ID || !KEY) return [];
   const s = getSettings();
-  const COUNTRY = COUNTRIES[s.country].adzuna;
-  if (!COUNTRY) { say(`adzuna: not available for ${COUNTRIES[s.country].name}`); return []; }
+  const COUNTRY = COUNTRIES[country].adzuna;
+  if (!COUNTRY) { say(`adzuna: not available for ${COUNTRIES[country].name}`); return []; }
   // "what" requires every word, so search each query as written
   const QUERIES = s.searchQueries.slice(0, 6).map((what) => ({ what }));
   const hits = new Map<string, Hit>();
@@ -40,17 +47,18 @@ export async function scanAdzuna(say: (m: string) => void, maxDaysOld = 7): Prom
       await sleep(400);
     }
   }
-  const out: Job[] = [];
+  const found: Job[] = [];
   for (const h of hits.values()) {
     const loc = h.location?.display_name ?? "";
-    const salary = h.salary_min && h.salary_is_predicted !== "1" ? `£${Math.round(h.salary_min)}${h.salary_max && h.salary_max !== h.salary_min ? ` - £${Math.round(h.salary_max)}` : ""}` : null;
+    const sym = COUNTRIES[country].symbol;
+    const salary = h.salary_min && h.salary_is_predicted !== "1" ? `${sym}${Math.round(h.salary_min)}${h.salary_max && h.salary_max !== h.salary_min ? ` - ${sym}${Math.round(h.salary_max)}` : ""}` : null;
     const desc = strip(h.description ?? "");
-    out.push({
+    found.push({
       source: "adzuna", source_id: h.id, url: h.redirect_url, title: strip(h.title), company: h.company?.display_name?.trim() || "Unknown",
       location: loc, work_mode: /remote/i.test(`${h.title} ${loc} ${desc.slice(0, 600)}`) ? "remote" : /hybrid/i.test(desc) ? "hybrid" : "unknown",
-      salary_text: salary ? salary.replace(/£/g, COUNTRIES[s.country].symbol) : null, posted_at: h.created?.slice(0, 10) ?? null, description: desc,
+      salary_text: salary, country, posted_at: h.created?.slice(0, 10) ?? null, description: desc,
     });
   }
-  say(`adzuna: ${calls} API calls, ${hits.size} matching roles (snippet only)`);
-  return out;
+  say(`adzuna (${COUNTRIES[country].name}): ${calls} API calls, ${hits.size} matching roles (snippet only)`);
+  return found;
 }

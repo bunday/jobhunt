@@ -1,7 +1,8 @@
 // One full scan: refresh the sponsor register (if the user needs sponsorship), pull every source, score, store.
 import { db, jobExists, upsertJob, type Job } from "./db";
 import { score } from "./score";
-import { COUNTRIES, getSettings } from "./settings";
+import { COUNTRIES, type CountryCode, getSettings, prefsFor, searchCountries } from "./settings";
+import { jobCountry } from "./match";
 import { hasRegister, matchSponsor, refreshRegister } from "./sponsors";
 import { scanAdzuna } from "./sources/adzuna";
 import { scanApple } from "./sources/apple";
@@ -18,14 +19,18 @@ function excluded(company: string): boolean {
 
 export function finalise(j: Job): Job {
   const st = getSettings();
-  const sp = st.needsSponsorship ? matchSponsor(st.country, j.company) : { status: "n/a" as const };
+  // the country the job is in decides currency, salary minimum, sponsorship and which register to check
+  const country = (j.country ?? jobCountry(j.location ?? "") ?? st.country) as CountryCode;
+  j = { ...j, country };
+  const needs = prefsFor(country, st).needsSponsorship;
+  const sp = needs ? matchSponsor(country, j.company) : { status: "n/a" as const };
   const r = score(j, sp, st);
   return {
     ...j,
     salary_min: r.salary.min,
     salary_max: r.salary.max,
     // a recruiter's own name matching the register says nothing about their client
-    sponsor_status: r.agency && st.needsSponsorship ? "agency" : sp.status,
+    sponsor_status: r.agency && needs ? "agency" : sp.status,
     sponsor_name: "name" in sp ? sp.name ?? null : null,
     sponsor_text: r.sponsorText,
     score: r.score,
@@ -51,34 +56,39 @@ export async function runScan(opts: { postedWithin?: number; log?: (m: string) =
     if (upsertJob(finalise(j)).added) added++;
   };
 
-  if (st.needsSponsorship && hasRegister(st.country)) {
-    stage("Updating the sponsor register");
-    try { say(`sponsor register (${st.country}): ${await refreshRegister(st.country)}`); }
-    catch (e) { say(`sponsor register refresh failed, using the cached copy: ${(e as Error).message}`); }
+  for (const c of searchCountries(st)) {
+    if (!prefsFor(c, st).needsSponsorship || !hasRegister(c)) continue;
+    stage(`Updating the ${COUNTRIES[c].name} sponsor register`);
+    try { say(`sponsor register (${c}): ${await refreshRegister(c)}`); }
+    catch (e) { say(`sponsor register (${c}) refresh failed, using the cached copy: ${(e as Error).message}`); }
   }
 
   const postedWithin = opts.postedWithin ?? 7 * 86400;
-  const runs: linkedin.SearchOpts[] = [];
+  type Run = linkedin.SearchOpts & { country: CountryCode };
+  const runs: Run[] = [];
+  const extras = searchCountries(st).slice(1);
   for (const kw of st.searchQueries.slice(0, 10)) {
+    // extra countries: the user would relocate, so any working pattern, nationwide
+    for (const c of extras) runs.push({ country: c, keywords: kw, location: COUNTRIES[c].linkedin, postedWithin, pages: 3 });
     const pref = st.remotePreference;
     // nationwide remote search, unless the work is on-site
-    if (pref !== "onsite") runs.push({ keywords: kw, location: cc.linkedin, workType: 2, postedWithin, pages: pref === "remote" ? 5 : 3 });
+    if (pref !== "onsite") runs.push({ country: st.country, keywords: kw, location: cc.linkedin, workType: 2, postedWithin, pages: pref === "remote" ? 5 : 3 });
     // search around home: any working pattern for on-site/hybrid/any people; a light hybrid search for remote-first people
     if (st.homeCity) {
       const near = `${st.homeCity}, ${cc.linkedin}`;
-      if (pref === "remote") runs.push({ keywords: kw, location: near, workType: 3, distanceMiles: 30, postedWithin, pages: 1 });
-      else runs.push({ keywords: kw, location: near, distanceMiles: pref === "onsite" ? 25 : 50, postedWithin, pages: pref === "onsite" ? 5 : 3 });
+      if (pref === "remote") runs.push({ country: st.country, keywords: kw, location: near, workType: 3, distanceMiles: 30, postedWithin, pages: 1 });
+      else runs.push({ country: st.country, keywords: kw, location: near, distanceMiles: pref === "onsite" ? 25 : 50, postedWithin, pages: pref === "onsite" ? 5 : 3 });
     }
   }
 
   for (const [i, run] of runs.entries()) {
-    stage(`LinkedIn search ${i + 1} of ${runs.length}: "${run.keywords}"`);
+    stage(`LinkedIn search ${i + 1} of ${runs.length}: "${run.keywords}" (${COUNTRIES[run.country].name})`);
     let cards: Awaited<ReturnType<typeof linkedin.search>> = [];
     try { cards = await linkedin.search(run); } catch (e) { say(`linkedin "${run.keywords}" failed: ${(e as Error).message}`); }
     const fresh = cards.filter((c) => !excluded(c.company) && !jobExists("linkedin", c.id));
-    say(`linkedin "${run.keywords}" [${run.distanceMiles ? `within ${run.distanceMiles} miles of ${st.homeCity}` : `remote, ${cc.name}`}]: ${cards.length} results, ${fresh.length} new`);
+    say(`linkedin "${run.keywords}" [${run.distanceMiles ? `within ${run.distanceMiles} miles of ${st.homeCity}` : run.country === st.country ? `remote, ${cc.name}` : COUNTRIES[run.country].name}]: ${cards.length} results, ${fresh.length} new`);
     for (const c of fresh) {
-      try { add(await linkedin.detail(c, run.workType, !!run.distanceMiles)); } catch (e) { say(`  detail ${c.id} failed: ${(e as Error).message}`); }
+      try { add(await linkedin.detail(c, run.workType, !!run.distanceMiles, run.country)); } catch (e) { say(`  detail ${c.id} failed: ${(e as Error).message}`); }
       await sleep(1500);
     }
     await sleep(3000);

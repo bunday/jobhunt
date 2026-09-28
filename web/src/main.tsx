@@ -2,7 +2,7 @@ import { Star } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, type SetupData } from "@/api";
-import { cn, setCurrency } from "@/lib/utils";
+import { cn, setApp } from "@/lib/utils";
 import { Jobs, type ListKind } from "@/pages/Jobs";
 import { Overview } from "@/pages/Overview";
 import { Settings } from "@/pages/Settings";
@@ -38,7 +38,7 @@ function App() {
   const load = useCallback(() => api.setup().then(setData), []);
   useEffect(() => { load(); }, [load]);
   if (!data) return null;
-  setCurrency(data.countries[data.settings.country]?.symbol ?? "£");
+  setApp({ countries: data.countries, home: data.settings.country, searched: [data.settings.country, ...data.settings.extraCountries] });
   if (!data.settings.setupComplete) return <div className="flex min-h-screen flex-col"><div className="flex-1"><Setup initial={data} onDone={load} /></div><Footer /></div>;
   const go = (t: string) => { setFocus(null); setTab(t as Tab); };
   return (

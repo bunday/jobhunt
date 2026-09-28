@@ -44,7 +44,7 @@ setInterval(() => {
   if (now.getHours() === getSettings().scanHour && lastAuto !== day) { lastAuto = day; startScan(2); }
 }, 60_000);
 
-const LIST_COLS = "id, source, url, title, company, location, work_mode, salary_text, salary_min, salary_max, posted_at, is_agency, sponsor_status, sponsor_name, sponsor_text, score, reasons, status, cv_path, notes, applied_at, first_seen, updated_at, prep_state";
+const LIST_COLS = "id, source, url, title, company, location, country, work_mode, salary_text, salary_min, salary_max, posted_at, is_agency, sponsor_status, sponsor_name, sponsor_text, score, reasons, status, cv_path, notes, applied_at, first_seen, updated_at, prep_state";
 const STAGE_WORD: Record<string, string> = { shortlisted: "Shortlisted", tailoring: "Documents ready, not yet applied", applied: "Applied", interview: "Interview stage", offer: "Offer", rejected: "Rejected", skipped: "Skipped" };
 
 const app = new Elysia()
@@ -71,7 +71,7 @@ const app = new Elysia()
     const before = getSettings();
     const s = saveSettings(body as Partial<Settings>);
     // anything that changes how jobs are judged: re-score what's already there
-    const judge = ["targetRoles", "seniority", "strongSkills", "weakSkills", "country", "homeCity", "commutable", "remotePreference", "maxOfficeDays", "salaryMin", "needsSponsorship", "sponsorSalaryFloor", "excludeCompanies"] as const;
+    const judge = ["targetRoles", "seniority", "strongSkills", "weakSkills", "country", "homeCity", "commutable", "remotePreference", "maxOfficeDays", "extraCountries", "perCountry", "excludeCompanies"] as const;
     if (s.setupComplete && judge.some((k) => JSON.stringify(before[k]) !== JSON.stringify(s[k]))) rescoreAll();
     return s;
   }, { body: t.Record(t.String(), t.Any()) })
@@ -148,6 +148,7 @@ const app = new Elysia()
     const args: (string | number)[] = [];
     if (query.status) { where.push(`status IN (${query.status.split(",").map(() => "?").join(",")})`); args.push(...query.status.split(",")); }
     if (query.minScore) { where.push("score >= ?"); args.push(Number(query.minScore)); }
+    if (query.country) { where.push("COALESCE(country, ?) = ?"); args.push(getSettings().country, query.country); }
     if (query.q) { where.push("(title LIKE ? OR company LIKE ?)"); args.push(`%${query.q}%`, `%${query.q}%`); }
     return db.query(`SELECT ${LIST_COLS} FROM jobs ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY score DESC, first_seen DESC LIMIT 300`).all(...args);
   })

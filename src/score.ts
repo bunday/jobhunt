@@ -1,6 +1,6 @@
 // Rank a job against the user's settings. Pure function: every point has a human-readable reason.
 import type { Job } from "./db";
-import { COUNTRIES, OTHER_PLACES, type Settings } from "./settings";
+import { COUNTRIES, type CountryCode, OTHER_PLACES, prefsFor, searchCountries, type Settings } from "./settings";
 import type { SponsorMatch } from "./sponsors";
 import { titleWanted } from "./match";
 
@@ -103,7 +103,12 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   const title = j.title.toLowerCase();
   const desc = (j.description ?? "").toLowerCase();
   const all = `${title}\n${desc}`;
-  const cur = COUNTRIES[st.country];
+  // judged by the job's own country: its currency, the user's minimum and sponsorship needs there
+  const jc = (j.country ?? st.country) as CountryCode;
+  const cur = COUNTRIES[jc] ?? COUNTRIES[st.country];
+  const pc = prefsFor(jc, st);
+  const isHome = jc === st.country;
+  const mineCountries = searchCountries(st);
   const money = (n: number) => `${cur.symbol}${Math.round(n / 1000)}k`;
   const home = st.homeCity || "home";
   const mine = new Set([...st.strongSkills, ...st.weakSkills]);
@@ -145,13 +150,19 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   const officeDays = officeDaysPerWeek(desc);
   const noRemote = /fully remote( working| work)? (is )?not (available|possible|an option|offered)|not (a )?(fully )?remote (role|position)|(on-?site|in[- ]office|office[- ]based) (role|position)|fully on-?site|5 days (a|per) week (in|at|from) (the |our )?office|full[- ]time in (the |our )?office/.test(desc);
   const remoteText = !noRemote && /fully remote|100% remote|remote[- ]first|remote[- ]friendly|remote \(|remote (in|across|within)|work from anywhere|or remote|work where you work best|flexibility to work from home|no mandated requirement on office attendance/.test(`${desc} ${loc}`);
-  const elsewhere = OTHER_PLACES.test(loc) || Object.entries(COUNTRIES).filter(([c]) => c !== st.country).some(([, o]) => o.places.test(loc));
+  const inMine = mineCountries.some((c) => COUNTRIES[c].places.test(loc));
+  const elsewhere = !inMine && (OTHER_PLACES.test(loc) || Object.entries(COUNTRIES).some(([c, o]) => !mineCountries.includes(c as CountryCode) && o.places.test(loc)));
   // "must be based in X" / "relocate to X": abroad when X is another country
-  const otherCountry = (t: string) => (OTHER_PLACES.test(t) || Object.entries(COUNTRIES).some(([c, o]) => c !== st.country && o.places.test(t))) && !cur.places.test(t);
+  const otherCountry = (t: string) => (OTHER_PLACES.test(t) || Object.entries(COUNTRIES).some(([c, o]) => !mineCountries.includes(c as CountryCode) && o.places.test(t))) && !mineCountries.some((c) => COUNTRIES[c].places.test(t));
   const required = [...desc.matchAll(/(?:must be (?:based|located) in|relocat\w* to|relocation to|based in our) ([^.\n]{0,40})/g)].map((m) => m[1]);
-  const abroad = (elsewhere && !cur.places.test(loc)) || required.some(otherCountry);
+  const abroad = elsewhere || required.some(otherCountry);
   const maxDays = st.remotePreference === "remote" ? Math.min(st.maxOfficeDays, 1) : st.maxOfficeDays;
-  if (abroad) { s -= 40; reasons.push(`− based outside ${cur.name}`); }
+  if (abroad) { s -= 40; reasons.push(`− based outside the countries you're searching`); }
+  else if (!isHome) {
+    // an extra country: the user said they'd move there, so on-site and hybrid jobs are fine
+    if (remoteText || officeDays === 0) { s += 10; reasons.push(`+ remote, ${cur.name}`); }
+    else { s += 5; reasons.push(`~ in ${cur.name}: you'd relocate`); }
+  }
   else if (nearby) { s += 10; reasons.push(`+ near ${home}`); }
   else if (st.remotePreference === "onsite") {
     // on-site work: distance is what matters; a remote job is still fine, a far-away on-site one isn't
@@ -175,13 +186,13 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   // salary (flags only: nothing is filtered out)
   const salary = parseSalary(j.salary_text ?? salaryFromDescription(j.description ?? ""));
   if (salary.daily || /\b(contract|contractor|outside ir35|inside ir35|ftc|fixed[- ]term)\b/.test(title) || /day rate|outside ir35|inside ir35/.test(desc)) {
-    s -= st.needsSponsorship ? 40 : 15; reasons.push(`− contract / day-rate${st.needsSponsorship ? " (contracts rarely sponsor)" : ""}`);
+    s -= pc.needsSponsorship ? 40 : 15; reasons.push(`− contract / day-rate${pc.needsSponsorship ? " (contracts rarely sponsor)" : ""}`);
   } else if (salary.max) {
     const band = `${money(salary.min ?? salary.max)}–${money(salary.max)}`;
-    const floor = st.needsSponsorship ? st.sponsorSalaryFloor : null;
+    const floor = pc.needsSponsorship ? pc.sponsorSalaryFloor : null;
     if (floor && salary.max < floor) { s -= 40; reasons.push(`− pays under the ${cur.symbol}${floor.toLocaleString()} visa salary floor`); }
-    else if (st.salaryMin && salary.max < st.salaryMin) { s -= 4; reasons.push(`~ salary ${band} tops out under your ${money(st.salaryMin)} minimum`); }
-    else { s += 8; reasons.push(`+ salary ${band}${salary.hourly ? " a year (from the hourly rate)" : ""}${st.salaryMin ? ` reaches your ${money(st.salaryMin)} minimum` : ""}`); }
+    else if (pc.salaryMin && salary.max < pc.salaryMin) { s -= 4; reasons.push(`~ salary ${band} tops out under your ${money(pc.salaryMin)} minimum`); }
+    else { s += 8; reasons.push(`+ salary ${band}${salary.hourly ? " a year (from the hourly rate)" : ""}${pc.salaryMin ? ` reaches your ${money(pc.salaryMin)} minimum` : ""}`); }
     if (floor && salary.min && salary.min < floor && salary.max >= floor) reasons.push(`~ bottom of range is under the ${cur.symbol}${floor.toLocaleString()} visa floor: the offer must land at or above it`);
   }
 
@@ -190,9 +201,9 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
 
   // sponsorship: only when the user needs it
   let sponsorText: Scored["sponsorText"] = "none";
-  if (st.needsSponsorship) {
+  if (pc.needsSponsorship) {
     const refusal = REFUSES.map((r) => desc.match(r)).find((m) => m && !PARTIAL.test(desc.slice(m.index!, m.index! + m[0].length + 60)));
-    const offer = OFFERS.some((r) => r.test(desc)) && !(st.country !== "us" && US_ONLY.test(desc));
+    const offer = OFFERS.some((r) => r.test(desc)) && !(jc !== "us" && US_ONLY.test(desc));
     sponsorText = refusal ? "refuses" : offer ? "offers" : "none";
     if (sponsorText === "refuses") { s -= 60; reasons.push("− ad says no sponsorship / right to work required / clearance"); }
     if (sponsorText === "offers") { s += 15; reasons.push("+ ad mentions visa sponsorship"); }
@@ -206,6 +217,6 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   if (j.source === "adzuna" && (j.description ?? "").length < 700) reasons.push("~ snippet only: open the ad for full details (sponsorship and office days may be missing)");
   // Scale against the best score a job could get with this user's settings, so "70+ = strong" means the same for
   // everyone. Sponsorship only adds to the maximum for people who need it; it never counts for anyone else.
-  const best = 20 + (st.targetRoles.length ? 10 : 0) + (st.seniority !== "any" ? 10 : 0) + (st.strongSkills.length ? 22 : 0) + 10 + 8 + (st.needsSponsorship ? 30 : 0);
+  const best = 20 + (st.targetRoles.length ? 10 : 0) + (st.seniority !== "any" ? 10 : 0) + (st.strongSkills.length ? 22 : 0) + 10 + 8 + (pc.needsSponsorship ? 30 : 0);
   return { score: Math.max(0, Math.min(100, Math.round((s * 100) / best))), reasons, sponsorText, salary, agency };
 }

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/form";
-import { ago, cn, moneyRange } from "@/lib/utils";
+import { ago, app, cn, moneyRange } from "@/lib/utils";
 import { sameQuestion } from "@/similar";
 
 export const STATUSES = ["new", "shortlisted", "tailoring", "applied", "interview", "offer", "rejected", "skipped", "closed"];
@@ -204,7 +204,8 @@ export function JobCard({ row, onChange, defaultOpen = false }: { row: JobRow; o
   useEffect(() => { if (open && !full) reload(); }, [open, full, reload]);
   const reasons: string[] = row.reasons ? JSON.parse(row.reasons) : [];
   const sponsor = row.sponsor_status && SPONSOR[row.sponsor_status];
-  const money = moneyRange(row.salary_min, row.salary_max) ?? row.salary_text;
+  const money = moneyRange(row.salary_min, row.salary_max, row.country) ?? row.salary_text;
+  const abroad = app.searched.length > 1 && row.country && row.country !== app.home ? app.countries[row.country]?.name : null;
   const setStatus = async (status: string) => { await api.patchJob(row.id, { status }); onChange(); };
   const snippetOnly = full && (full.description ?? "").length < 700;
 
@@ -220,6 +221,7 @@ export function JobCard({ row, onChange, defaultOpen = false }: { row: JobRow; o
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{row.company}</span>
             {row.location && <span className="truncate">{row.location}</span>}
+            {abroad && <Badge tone="info">{abroad}</Badge>}
             {row.work_mode && row.work_mode !== "unknown" && <Badge tone="outline">{row.work_mode}</Badge>}
             {money && <Badge tone="outline">{money}</Badge>}
             {sponsor && <Badge tone={sponsor[1]}>{sponsor[0]}</Badge>}

@@ -29,6 +29,13 @@ export const COUNTRIES: Record<CountryCode, {
 /** Countries outside the supported five, so "Germany (Remote)" isn't mistaken for "remote in your country". */
 export const OTHER_PLACES = /\b(germany|deutschland|berlin|munich|hamburg|france|paris|spain|madrid|barcelona|portugal|lisbon|italy|milan|poland|warsaw|krakow|romania|bucharest|sweden|stockholm|denmark|copenhagen|norway|oslo|finland|helsinki|switzerland|zurich|austria|vienna|belgium|brussels|czech|prague|hungary|budapest|greece|estonia|lithuania|latvia|ukraine|israel|tel aviv|india|bangalore|bengaluru|hyderabad|pune|singapore|japan|tokyo|australia|sydney|melbourne|new zealand|brazil|sao paulo|mexico|argentina|colombia|chile|south africa|nigeria|lagos|kenya|egypt|uae|dubai|turkey|istanbul|philippines|manila|china|hong kong|korea|seoul|latam|apac)\b/i;
 
+export type CountryPrefs = {
+  salaryMin: number | null;          // flagged, never filtered
+  needsSponsorship: boolean;         // checked against that country's public sponsor register where one exists (UK, NL)
+  sponsorSalaryFloor: number | null; // minimum salary the visa route requires for your occupation, if any
+};
+export const MAX_EXTRA_COUNTRIES = 2;
+
 export type Settings = {
   setupComplete: boolean;
   // about you (also the contact line on every CV and cover letter)
@@ -48,10 +55,10 @@ export type Settings = {
   commutable: string[];         // towns/cities you'd travel to for hybrid work
   remotePreference: "" | "remote" | "hybrid" | "onsite" | "any"; // "" = not chosen yet (setup requires a choice)
   maxOfficeDays: number;        // for offices outside your commutable area
-  // money and eligibility
-  salaryMin: number | null;     // flagged, never filtered
-  needsSponsorship: boolean;    // checked against the country's public sponsor register where one exists (UK, Netherlands)
-  sponsorSalaryFloor: number | null; // minimum salary the visa route requires for your occupation (e.g. UK going rate), if any
+  // extra countries to search besides home (max 2); each extra country adds its own searches, so scans take longer
+  extraCountries: CountryCode[];
+  // money and eligibility, per searched country (currencies differ; sponsorship is usually needed abroad only)
+  perCountry: Partial<Record<CountryCode, CountryPrefs>>;
   excludeCompanies: string[];   // e.g. your current employer
   // how the AI should write for you
   writingRules: string;         // extra rules, e.g. "never mention X", "British English"
@@ -63,16 +70,35 @@ export const DEFAULT_SETTINGS: Settings = {
   name: "", email: "", phone: "", links: [],
   targetRoles: [], seniority: "senior", strongSkills: [], weakSkills: [], searchQueries: [],
   country: "gb", homeCity: "", commutable: [], remotePreference: "", maxOfficeDays: 2,
-  salaryMin: null, needsSponsorship: false, sponsorSalaryFloor: null, excludeCompanies: [],
+  extraCountries: [], perCountry: {}, excludeCompanies: [],
   writingRules: "", scanHour: 7,
 };
 
+type LegacySettings = { salaryMin?: number | null; needsSponsorship?: boolean; sponsorSalaryFloor?: number | null };
+
 export function getSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...(kvGet<Partial<Settings>>("settings") ?? {}) };
+  const stored = (kvGet<Partial<Settings> & LegacySettings>("settings") ?? {});
+  const st = { ...DEFAULT_SETTINGS, ...stored };
+  // one-time upgrade: single-country money/sponsorship settings become the home country's
+  if (!stored.perCountry && (stored.salaryMin != null || stored.needsSponsorship != null)) {
+    st.perCountry = { [st.country]: { salaryMin: stored.salaryMin ?? null, needsSponsorship: !!stored.needsSponsorship, sponsorSalaryFloor: stored.sponsorSalaryFloor ?? null } };
+  }
+  return st;
+}
+
+/** Home country first, then up to two extra countries. */
+export function searchCountries(s: Settings = getSettings()): CountryCode[] {
+  return [s.country, ...s.extraCountries.filter((c) => c !== s.country && c in COUNTRIES)].slice(0, 1 + MAX_EXTRA_COUNTRIES);
+}
+
+export function prefsFor(c: CountryCode, s: Settings = getSettings()): CountryPrefs {
+  return { salaryMin: null, needsSponsorship: false, sponsorSalaryFloor: null, ...s.perCountry[c] };
 }
 
 export function saveSettings(patch: Partial<Settings>): Settings {
   const next = { ...getSettings(), ...patch };
+  next.extraCountries = [...new Set(next.extraCountries.filter((c) => c !== next.country && c in COUNTRIES))].slice(0, MAX_EXTRA_COUNTRIES);
+  for (const k of ["salaryMin", "needsSponsorship", "sponsorSalaryFloor"]) delete (next as Record<string, unknown>)[k];
   // the scanner needs something to search for
   if (!next.searchQueries.length && next.targetRoles.length) next.searchQueries = next.targetRoles.slice(0, 8);
   next.strongSkills = next.strongSkills.map((s) => s.toLowerCase().trim()).filter(Boolean);

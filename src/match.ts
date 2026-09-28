@@ -1,5 +1,5 @@
 // Which job titles are worth fetching, based on the user's target roles and level (shared by every source).
-import { COUNTRIES, getSettings, OTHER_PLACES } from "./settings";
+import { COUNTRIES, type CountryCode, getSettings, OTHER_PLACES, searchCountries } from "./settings";
 
 const LEVEL = /\b(senior|sr|junior|jr|lead|staff|principal|head|mid|graduate|intern|associate|i{1,3}|iv|[1-5])\b/g;
 const JUNIOR = /\b(junior|jr\.?|graduate|intern|internship|apprentice|entry[- ]level|trainee)\b/i;
@@ -26,14 +26,19 @@ export function titleWanted(title: string): boolean {
   return true;
 }
 
-/** Is a job location inside the user's country (or remote in a way that includes it)? */
-export function locationInCountry(loc: string): boolean {
+/**
+ * Which of the user's searched countries a job location is in. Remote roles that don't name another country
+ * count as home (and "Remote, EMEA" counts for European homes). null = somewhere the user isn't searching.
+ */
+export function jobCountry(loc: string): CountryCode | null {
   const s = getSettings();
-  const c = COUNTRIES[s.country];
-  if (c.places.test(loc)) return true;
-  if (!/remote|anywhere|worldwide|global/i.test(loc)) return false;
-  // "Remote - US" is remote, but not for someone in the UK
-  const other = OTHER_PLACES.test(loc) || Object.entries(COUNTRIES).some(([k, o]) => k !== s.country && o.places.test(loc));
+  const mine = searchCountries(s);
+  const hit = mine.find((c) => COUNTRIES[c].places.test(loc));
+  if (hit) return hit;
+  if (!/remote|anywhere|worldwide|global/i.test(loc)) return null;
+  const other = OTHER_PLACES.test(loc) || Object.entries(COUNTRIES).some(([k, o]) => !mine.includes(k as CountryCode) && o.places.test(loc));
   const region = s.country === "us" || s.country === "ca" ? /\b(north america|americas)\b/i : /\b(emea|europe|eu)\b/i;
-  return !other || region.test(loc) || /anywhere|worldwide|global/i.test(loc);
+  return !other || region.test(loc) || /anywhere|worldwide|global/i.test(loc) ? s.country : null;
 }
+
+export const locationInCountry = (loc: string) => jobCountry(loc) !== null;

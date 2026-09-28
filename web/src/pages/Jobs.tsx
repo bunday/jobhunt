@@ -2,6 +2,7 @@ import { Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, type JobRow, type ScanStatus } from "@/api";
 import { JobCard } from "@/components/JobCard";
+import { app } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
@@ -17,18 +18,20 @@ export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) 
   const [rows, setRows] = useState<JobRow[] | null>(null);
   const [q, setQ] = useState("");
   const [minScore, setMinScore] = useState("50");
+  const [country, setCountry] = useState("");
   const [adding, setAdding] = useState(false);
   const [scan, setScan] = useState<ScanStatus | null>(null);
   const load = useCallback(async () => {
     const p: Record<string, string> = { status: QUERY[kind].status };
     if (q) p.q = q;
     if (kind === "discover" && minScore) p.minScore = minScore;
+    if (country) p.country = country;
     const r = await api.jobs(p);
     const order = QUERY[kind].order;
     if (order) r.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
     if (focus) r.sort((a, b) => (a.id === focus ? -1 : b.id === focus ? 1 : 0));
     setRows(r);
-  }, [kind, q, minScore, focus]);
+  }, [kind, q, minScore, country, focus]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (kind !== "discover") return;
@@ -43,6 +46,12 @@ export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) 
           <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input className="pl-8" placeholder="Search title or company" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {app.searched.length > 1 && (
+          <Select className="w-44" value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Country">
+            <option value="">All countries</option>
+            {app.searched.map((c) => <option key={c} value={c}>{app.countries[c]?.name ?? c}</option>)}
+          </Select>
+        )}
         {kind === "discover" && (
           <>
             <Select className="w-56" value={minScore} onChange={(e) => setMinScore(e.target.value)} aria-label="Minimum score">

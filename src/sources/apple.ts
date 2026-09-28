@@ -1,7 +1,7 @@
 // jobs.apple.com: no public API, but search and detail pages embed their data as React Router hydration JSON.
 import type { Job } from "../db";
 import { titleWanted } from "../match";
-import { COUNTRIES, getSettings } from "../settings";
+import { COUNTRIES, type CountryCode, getSettings, searchCountries } from "../settings";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
 const BASE = "https://jobs.apple.com/en-gb"; // UI language only; the location parameter picks the country
@@ -26,8 +26,14 @@ function find(o: unknown, key: string): Record<string, unknown> | null {
 type Hit = { id: string; positionId: string; postingTitle: string; postDateInGMT?: string; locations?: { name: string }[] };
 
 export async function scanApple(say: (m: string) => void): Promise<Job[]> {
+  const out: Job[] = [];
+  for (const c of searchCountries()) out.push(...(await scanAppleCountry(c, say)));
+  return out;
+}
+
+async function scanAppleCountry(country: CountryCode, say: (m: string) => void): Promise<Job[]> {
   const s = getSettings();
-  const loc = COUNTRIES[s.country].apple;
+  const loc = COUNTRIES[country].apple;
   if (!loc) return [];
   const QUERIES = s.searchQueries.slice(0, 5);
   const hits = new Map<string, Hit>();
@@ -53,12 +59,13 @@ export async function scanApple(say: (m: string) => void): Promise<Job[]> {
       url: `${BASE}/details/${h.id}`,
       title: String(jd.postingTitle ?? h.postingTitle).trim(),
       company: "Apple",
+      country,
       location: ((jd.locations as { name: string }[]) ?? h.locations ?? []).map((l) => l.name).join(" / "),
       work_mode: jd.homeOffice === true ? "remote" : "unknown",
       posted_at: h.postDateInGMT?.slice(0, 10) ?? null,
       description: [jd.jobSummary, section("Description", "description"), section("Responsibilities", "responsibilities"), section("Minimum qualifications", "minimumQualifications"), section("Preferred qualifications", "preferredQualifications")].filter(Boolean).join("\n\n"),
     });
   }
-  say(`apple: ${hits.size} matching roles`);
+  say(`apple (${COUNTRIES[country].name}): ${hits.size} matching roles`);
   return out;
 }

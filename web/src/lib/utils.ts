@@ -14,13 +14,15 @@ export function ago(iso: string | null | undefined): string {
 
 export const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
-/** Currency symbol of the user's search country, set once the app loads. */
-export let currency = "£";
-export const setCurrency = (s: string) => { currency = s; };
+type CountryInfo = { name: string; symbol: string };
+/** Country names/currencies and the user's home + searched countries, set once the app loads. */
+export const app = { countries: {} as Record<string, CountryInfo>, home: "gb", searched: ["gb"] as string[] };
+export const setApp = (a: typeof app) => Object.assign(app, a);
 
-/** "£90k–£120k", or "£101k" when min and max are the same. */
-export function moneyRange(min: number | null, max: number | null): string | null {
+/** "£90k–£120k" (in the job's own country's currency), or "£101k" when min and max are the same. */
+export function moneyRange(min: number | null, max: number | null, country?: string | null): string | null {
   if (!max) return null;
-  const k = (n: number) => `${currency}${Math.round(n / 1000)}k`;
+  const sym = app.countries[country ?? app.home]?.symbol ?? "";
+  const k = (n: number) => `${sym}${Math.round(n / 1000)}k`;
   return !min || Math.round(min / 1000) === Math.round(max / 1000) ? k(max) : `${k(min)}–${k(max)}`;
 }

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   description    TEXT,
   is_agency      INTEGER DEFAULT 0,
   near_home      INTEGER DEFAULT 0,        -- found by a search around the user's home city
+  country        TEXT,                     -- which searched country the job is in (gb, nl, us, ie, ca, tr)
   sponsor_status TEXT,                     -- licensed | likely | not_found | agency | n/a
   sponsor_name   TEXT,
   sponsor_text   TEXT,                     -- offers | refuses | none (what the ad says about visa sponsorship)
@@ -87,6 +88,7 @@ CREATE INDEX IF NOT EXISTS jobs_score ON jobs(score);
 {
   const cols = db.query("PRAGMA table_info(jobs)").all() as { name: string }[];
   if (!cols.some((c) => c.name === "near_home")) db.exec("ALTER TABLE jobs ADD COLUMN near_home INTEGER DEFAULT 0");
+  if (!cols.some((c) => c.name === "country")) db.exec("ALTER TABLE jobs ADD COLUMN country TEXT");
 }
 
 export type Job = {
@@ -105,6 +107,7 @@ export type Job = {
   description?: string | null;
   is_agency?: number;
   near_home?: number;
+  country?: string | null;
   sponsor_status?: string | null;
   sponsor_name?: string | null;
   sponsor_text?: string | null;
@@ -119,7 +122,7 @@ export function jobExists(source: string, sourceId: string): boolean {
 
 const COLS = [
   "source", "source_id", "url", "title", "company", "location", "work_mode", "salary_text",
-  "salary_min", "salary_max", "posted_at", "description", "is_agency", "near_home", "sponsor_status",
+  "salary_min", "salary_max", "posted_at", "description", "is_agency", "near_home", "country", "sponsor_status",
   "sponsor_name", "sponsor_text", "score", "reasons",
 ] as const;
 

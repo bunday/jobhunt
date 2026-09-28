@@ -1,6 +1,6 @@
 // Forms for the user's profile, shared by the setup wizard and the Settings page.
-import { Plus, Trash2 } from "lucide-react";
-import type { Country, MasterCV, SetupData, Settings } from "@/api";
+import { Plus, Trash2, X } from "lucide-react";
+import { type Country, type CountryPrefs, MAX_EXTRA_COUNTRIES, type MasterCV, type SetupData, type Settings } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, TagInput, Textarea } from "@/components/ui/form";
 
@@ -49,18 +49,42 @@ export function SearchForm({ value, onChange }: SettingsProps) {
 }
 
 export function WhereForm({ value, onChange, countries }: SettingsProps & { countries: SetupData["countries"] }) {
-  const c = countries[value.country];
+  const home = value.country;
+  const extras = value.extraCountries.filter((c) => c !== home);
+  const all = [home, ...extras];
+  const available = (Object.keys(countries) as Country[]).filter((c) => !all.includes(c));
+  const prefs = (c: Country): CountryPrefs => ({ salaryMin: null, needsSponsorship: false, sponsorSalaryFloor: null, ...value.perCountry[c] });
+  const setPrefs = (c: Country, p: Partial<CountryPrefs>) => onChange({ perCountry: { ...value.perCountry, [c]: { ...prefs(c), ...p } } });
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Country you're searching in">
-          <Select value={value.country} onChange={(e) => onChange({ country: e.target.value as Country })}>
+        <Field label="Country you live in">
+          <Select value={home} onChange={(e) => { const c = e.target.value as Country; onChange({ country: c, extraCountries: extras.filter((x) => x !== c) }); }}>
             {Object.entries(countries).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
           </Select>
         </Field>
         <Field label="Home city"><Input value={value.homeCity} onChange={(e) => onChange({ homeCity: e.target.value })} placeholder="Manchester" /></Field>
       </div>
-      <Field label="Places you'd commute to" hint="Towns and cities where a hybrid job is fine.">
+
+      <Field label="Countries to search in" hint={`Your home country, plus up to ${MAX_EXTRA_COUNTRIES} more you'd move to. Each extra country makes the daily search take longer.`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md border bg-secondary px-2.5 py-1 text-sm">{countries[home].name} <span className="text-xs text-muted-foreground">(home)</span></span>
+          {extras.map((c) => (
+            <span key={c} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-sm">
+              {countries[c].name}
+              <button type="button" className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label={`Stop searching ${countries[c].name}`} onClick={() => onChange({ extraCountries: extras.filter((x) => x !== c) })}><X className="size-3.5" /></button>
+            </span>
+          ))}
+          {extras.length < MAX_EXTRA_COUNTRIES && available.length > 0 && (
+            <Select className="h-8 w-44" value="" onChange={(e) => e.target.value && onChange({ extraCountries: [...extras, e.target.value as Country], perCountry: { ...value.perCountry, [e.target.value]: { ...prefs(e.target.value as Country), needsSponsorship: true } } })}>
+              <option value="">+ Add a country</option>
+              {available.map((c) => <option key={c} value={c}>{countries[c].name}</option>)}
+            </Select>
+          )}
+        </div>
+      </Field>
+
+      <Field label="Places you'd commute to" hint={`Towns and cities near ${value.homeCity || "home"} where you'd travel for work.`}>
         <TagInput value={value.commutable} onChange={(commutable) => onChange({ commutable })} placeholder="Leeds" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -77,27 +101,37 @@ export function WhereForm({ value, onChange, countries }: SettingsProps & { coun
           <Input type="number" min={0} max={5} value={value.maxOfficeDays} onChange={(e) => onChange({ maxOfficeDays: Number(e.target.value) })} />
         </Field>
       </div>
-      <Field label={`Minimum salary (${c?.symbol ?? ""}, per year)`} hint="Jobs paying less are flagged, never hidden.">
-        <Input type="number" min={0} step={1000} value={value.salaryMin ?? ""} onChange={(e) => onChange({ salaryMin: e.target.value ? Number(e.target.value) : null })} />
-      </Field>
-      <div className="rounded-md border p-4">
-        <label className="flex items-start gap-3">
-          <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={value.needsSponsorship} onChange={(e) => onChange({ needsSponsorship: e.target.checked })} />
-          <span className="text-sm">
-            <span className="font-medium">I need visa sponsorship</span>
-            <span className="block text-muted-foreground">
-              {c?.sponsorRegister
-                ? `Every employer is checked against the ${c.name} public register of licensed sponsors, and ads that rule out sponsorship are flagged.`
-                : `There's no public sponsor register for ${c?.name}, so employers can't be checked. Ads that rule out sponsorship are still flagged.`}
-            </span>
-          </span>
-        </label>
-        {value.needsSponsorship && (
-          <Field className="mt-4" label={`Visa salary floor (${c?.symbol ?? ""}, optional)`} hint={value.country === "gb" ? "The minimum your visa route requires for your occupation. In the UK that's the higher of the general threshold and your occupation's going rate." : "The minimum salary your visa route requires, if there is one."}>
-            <Input type="number" min={0} step={100} value={value.sponsorSalaryFloor ?? ""} onChange={(e) => onChange({ sponsorSalaryFloor: e.target.value ? Number(e.target.value) : null })} />
-          </Field>
+
+      <div className="grid gap-2">
+        <span className="text-sm font-medium">Pay and sponsorship, per country</span>
+        <span className="text-xs text-muted-foreground">Jobs below your minimum are flagged, never hidden. Sponsorship is checked against the public sponsor register where the country has one ({Object.entries(countries).filter(([, v]) => v.sponsorRegister).map(([, v]) => v.name).join(", ")}).</span>
+        <div className="grid gap-3">
+          {all.map((c) => {
+            const p = prefs(c);
+            return (
+              <div key={c} className="grid items-end gap-3 rounded-md border p-3 sm:grid-cols-[9rem_1fr_auto_1fr]">
+                <span className="self-center text-sm font-medium">{countries[c].name}</span>
+                <Field label={`Minimum salary (${countries[c].symbol}/year)`}>
+                  <Input type="number" min={0} step={1000} value={p.salaryMin ?? ""} onChange={(e) => setPrefs(c, { salaryMin: e.target.value ? Number(e.target.value) : null })} />
+                </Field>
+                <label className="flex h-9 items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 accent-primary" checked={p.needsSponsorship} onChange={(e) => setPrefs(c, { needsSponsorship: e.target.checked })} />
+                  I need sponsorship here
+                </label>
+                {p.needsSponsorship ? (
+                  <Field label={`Visa salary floor (${countries[c].symbol}, optional)`}>
+                    <Input type="number" min={0} step={100} value={p.sponsorSalaryFloor ?? ""} onChange={(e) => setPrefs(c, { sponsorSalaryFloor: e.target.value ? Number(e.target.value) : null })} />
+                  </Field>
+                ) : <span />}
+              </div>
+            );
+          })}
+        </div>
+        {all.some((c) => prefs(c).needsSponsorship && !countries[c].sponsorRegister) && (
+          <span className="text-xs text-muted-foreground">No public sponsor register exists for {all.filter((c) => prefs(c).needsSponsorship && !countries[c].sponsorRegister).map((c) => countries[c].name).join(", ")}, so employers there can't be checked. Ads that rule out sponsorship are still flagged.</span>
         )}
       </div>
+
       <Field label="Companies to leave out" hint="For example your current employer.">
         <TagInput value={value.excludeCompanies} onChange={(excludeCompanies) => onChange({ excludeCompanies })} placeholder="Company name" />
       </Field>

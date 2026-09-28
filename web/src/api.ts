@@ -1,5 +1,8 @@
 export type Country = "gb" | "nl" | "us" | "ie" | "ca" | "tr";
 
+export type CountryPrefs = { salaryMin: number | null; needsSponsorship: boolean; sponsorSalaryFloor: number | null };
+export const MAX_EXTRA_COUNTRIES = 2;
+
 export type Settings = {
   setupComplete: boolean;
   name: string; email: string; phone: string; links: string[];
@@ -7,7 +10,8 @@ export type Settings = {
   strongSkills: string[]; weakSkills: string[]; searchQueries: string[];
   country: Country; homeCity: string; commutable: string[];
   remotePreference: "" | "remote" | "hybrid" | "onsite" | "any"; maxOfficeDays: number;
-  salaryMin: number | null; needsSponsorship: boolean; sponsorSalaryFloor: number | null;
+  extraCountries: Country[];
+  perCountry: Partial<Record<Country, CountryPrefs>>;
   excludeCompanies: string[]; writingRules: string; scanHour: number;
 };
 
@@ -31,7 +35,7 @@ export type CvImport = {
 };
 
 export type JobRow = {
-  id: number; source: string; url: string; title: string; company: string; location: string | null; work_mode: string | null;
+  id: number; source: string; url: string; title: string; company: string; location: string | null; country: Country | null; work_mode: string | null;
   salary_text: string | null; salary_min: number | null; salary_max: number | null; posted_at: string | null; is_agency: number;
   sponsor_status: string | null; sponsor_name: string | null; sponsor_text: string | null; score: number; reasons: string | null;
   status: string; cv_path: string | null; notes: string | null; applied_at: string | null; first_seen: string; updated_at: string; prep_state: string | null;

@@ -1,7 +1,7 @@
 // Company careers boards with public JSON APIs: Greenhouse, Lever, Ashby. Default list in config/companies.json
 // (add your own targets there, or in config/companies.local.json which is git-ignored).
 import { existsSync, readFileSync } from "node:fs";
-import { locationInCountry, titleWanted } from "../match";
+import { jobCountry, locationInCountry, titleWanted } from "../match";
 import type { Job } from "../db";
 
 const strip = (h: string) =>
@@ -65,6 +65,7 @@ export async function scanAts(say: (m: string) => void): Promise<Job[]> {
     const batch = await Promise.all(list.slice(i, i + 8).map((c) => fns[c.ats](c.slug, c.name).catch(() => [])));
     for (const b of batch) out.push(...b);
   }
-  say(`careers boards: ${list.length} companies, ${out.length} matching roles in your country`);
+  for (const j of out) j.country = jobCountry(j.location ?? "");
+  say(`careers boards: ${list.length} companies, ${out.length} matching roles in your countries`);
   return out;
 }

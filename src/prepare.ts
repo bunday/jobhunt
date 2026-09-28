@@ -5,7 +5,7 @@ import { generateJson } from "./ai";
 import { candidateContext, candidateName } from "./context";
 import { type Spec, renderJobCv } from "./cv";
 import { db, logEvent } from "./db";
-import { getMasterCV, getSettings } from "./settings";
+import { type CountryCode, COUNTRIES, getMasterCV, getSettings, prefsFor } from "./settings";
 import { sameQuestion } from "./similar";
 
 const system = () => {
@@ -69,14 +69,16 @@ function trim(spec: Spec): Spec | null {
 }
 
 export async function prepareJob(jobId: number): Promise<void> {
-  const job = db.query("SELECT id, title, company, location, salary_text, description, sponsor_status, sponsor_name FROM jobs WHERE id = ?").get(jobId) as Record<string, string> | null;
+  const job = db.query("SELECT id, title, company, location, salary_text, description, sponsor_status, sponsor_name, country FROM jobs WHERE id = ?").get(jobId) as Record<string, string> | null;
   if (!job) return;
   db.query("UPDATE jobs SET prep_state = 'running', updated_at = datetime('now') WHERE id = ?").run(jobId);
   logEvent(jobId, "note", "Prepare application started");
   try {
-    const sponsor = getSettings().needsSponsorship ? ` | Sponsor register: ${job.sponsor_status} ${job.sponsor_name ?? ""}` : "";
+    const jc = (job.country ?? getSettings().country) as CountryCode;
+    const sponsor = prefsFor(jc).needsSponsorship ? ` | Candidate needs sponsorship here. Sponsor register: ${job.sponsor_status} ${job.sponsor_name ?? ""}` : "";
+    const where = ` | Country: ${COUNTRIES[jc]?.name ?? jc}${jc === getSettings().country ? " (home)" : " (candidate would relocate)"}`;
     const prompt = [
-      `# Job: ${job.title} at ${job.company}\nLocation: ${job.location ?? "?"} | Salary: ${job.salary_text ?? "not published"}${sponsor}\n\n${(job.description ?? "").slice(0, 14000)}`,
+      `# Job: ${job.title} at ${job.company}\nLocation: ${job.location ?? "?"}${where} | Salary: ${job.salary_text ?? "not published"}${sponsor}\n\n${(job.description ?? "").slice(0, 14000)}`,
       candidateContext(),
     ].join("\n\n");
     const out = await generateJson<Out>(system(), prompt);
