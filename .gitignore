@@ -1,0 +1,8 @@
+# secrets and every user's personal data: never commit
+.env
+data/
+node_modules/
+web/dist/
+*.sqlite*
+*.pdf
+config/companies.local.json

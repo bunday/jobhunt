@@ -1,0 +1,18 @@
+services:
+  jobhunt:
+    build:
+      context: .
+      args:
+        INSTALL_CLAUDE_CLI: ${INSTALL_CLAUDE_CLI:-false}
+    container_name: jobhunt
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3800}:3800"
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      # your database and generated documents live here, on your machine
+      - ./data:/app/data
+      # company careers boards to scan: edit config/companies.json, or add your own in config/companies.local.json
+      - ./config:/app/config:ro
