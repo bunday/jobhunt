@@ -20,7 +20,7 @@ export const COUNTRIES: Record<CountryCode, {
     places: /\b(us|usa|u\.s\.|united states|new york|san francisco|seattle|austin|boston|chicago|los angeles|denver|atlanta|washington|remote - us|[a-z]+, (ca|ny|wa|tx|ma|il|co|ga))\b/i },
   ie: { name: "Ireland", currency: "EUR", symbol: "€", linkedin: "Ireland", apple: "ireland-IRL", adzuna: null, sponsorRegister: false,
     places: /\b(ireland|dublin|cork|galway|limerick|waterford)\b/i },
-  ca: { name: "Canada", currency: "CAD", symbol: "$", linkedin: "Canada", apple: "canada-CAN", adzuna: "ca", sponsorRegister: false,
+  ca: { name: "Canada", currency: "CAD", symbol: "$", linkedin: "Canada", apple: null, adzuna: "ca", sponsorRegister: false,
     places: /\b(canada|toronto|vancouver|montreal|ottawa|calgary|waterloo|edmonton|ontario|british columbia|quebec)\b/i },
   tr: { name: "Türkiye", currency: "TRY", symbol: "₺", linkedin: "Türkiye", apple: null, adzuna: null, sponsorRegister: false,
     places: /\b(turkey|türkiye|turkiye|istanbul|İstanbul|ankara|izmir|bursa|antalya|kocaeli|konya|gaziantep|eskişehir|eskisehir|mersin|kayseri|adana|samsun|trabzon|sakarya|tekirdağ|denizli)\b/i },

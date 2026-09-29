@@ -7,13 +7,29 @@ Everything runs on your own machine. Your CV, applications and notes never leave
 ## What it does
 
 - **Finds jobs daily** from LinkedIn's public search, company careers boards (Greenhouse, Lever, Ashby), Apple, and optionally Adzuna.
-- **Ranks them against you**: your target roles and level, your skills, your location and working pattern, your minimum salary. Every point of the score comes with a plain-English reason, and nothing is ever hidden: jobs outside your preferences are flagged, not filtered.
-- **Checks visa sponsorship** (optional): in the **UK** and the **Netherlands**, every employer is checked against the government's public register of licensed sponsors. Everywhere, ads that rule out sponsorship are flagged.
-- **Prepares applications**: one click tailors your CV (picked and reordered from your own master CV, so nothing is invented), writes a cover letter, and gives you an honest fit review with the gaps and questions that would make the application stronger.
+- **Searches up to three countries**: where you live, plus up to two you'd move to. Each country has its own minimum salary (in its own currency) and its own sponsorship setting, and every job is judged by the rules of the country it's in.
+- **Fits how you work**: on-site, hybrid, remote or any. On-site and hybrid searches centre on your home city and the places you'd commute to; jobs further away are flagged.
+- **Ranks every job against you**: your target roles and level, your skills, location and working pattern, and your minimum salary. Every point of the score comes with a plain-English reason, and nothing is ever hidden: jobs outside your preferences are flagged, not filtered.
+- **Checks visa sponsorship** (optional, per country): in the **UK** and the **Netherlands**, every employer is checked against the government's public register of licensed sponsors. Everywhere, ads that rule out sponsorship are flagged.
+- **Prepares applications**: one click tailors your CV (picked and reordered from your own master CV, so nothing is invented), writes a cover letter, and gives you an honest fit review with the gaps and questions that would make the application stronger. Download both as PDFs, named the way recruiters expect.
+- **Learns about you as you go**: answer the review's "to make this stronger" questions once, and every future application uses the answers.
 - **Polishes application-form answers** from your rough drafts.
-- **Tracks everything**: shortlisted, applied, interview, offer, with dates and notes.
+- **Tracks everything**: shortlisted, applied, interview, offer, with dates and notes, and an overview of where every application stands.
 
-Supported countries: **United Kingdom, Netherlands, United States, Ireland, Canada, Türkiye.** (In Türkiye, jobs come mainly from LinkedIn and remote roles; Adzuna and Apple don't cover it.)
+It works for any profession, not just tech: tell it the roles you want and it searches and ranks for those.
+
+### Supported countries
+
+| Country | Job sources | Sponsor register check |
+|---|---|---|
+| United Kingdom | LinkedIn, careers boards, Apple, Adzuna | Yes (Home Office register) |
+| Netherlands | LinkedIn, careers boards, Apple (few roles), Adzuna | Yes (IND register) |
+| United States | LinkedIn, careers boards, Apple, Adzuna | No public register |
+| Canada | LinkedIn, careers boards, Adzuna | No public register |
+| Ireland | LinkedIn, careers boards, Apple | No public register |
+| Türkiye | LinkedIn, careers boards (remote roles) | No public register |
+
+Where there's no register, ads that rule out sponsorship are still flagged.
 
 ## Quick start
 
@@ -42,22 +58,24 @@ Smaller or local models work, but write weaker cover letters and are more likely
 
 ## Everyday use
 
-1. **Discover**: new jobs, best first. Open one to see why it scored the way it did. Shortlist or skip.
-2. **Prepare**: on a shortlisted job, click *Prepare application*. You get a tailored CV (PDF), a cover letter (editable, downloadable as PDF) and a fit review. Answer the review's questions to strengthen future applications too: your answers are saved to your profile and reused.
-3. **Apply** on the employer's site yourself, then set the job's status to *Applied*.
-4. **Overview** shows where everything stands and what needs your attention.
+1. **Overview** shows your job pool (how many found, new, good and strong matches), where every application stands, and what needs your attention.
+2. **Discover** lists new jobs, best first. Open one to see why it scored the way it did, then shortlist or skip. Searching several countries? Filter by country.
+3. **Prepare**: on a shortlisted job, click *Prepare application*. You get a tailored CV, a cover letter you can edit, and a fit review. Answer its questions to strengthen this and future applications.
+4. **Apply** on the employer's site yourself, then set the job's status to *Applied*.
 
 Found a job somewhere else? Use *Add a job* in Discover and paste the description.
 
+Everything you set up can be changed later in **Settings**: roles, countries, pay, your master CV, your saved answers. **Settings → Start over** wipes everything and takes you back to setup.
+
 ## Your data
 
-- Everything is stored in `./data` (a SQLite database plus generated PDFs). Back it up by copying the folder.
+- Everything is stored in `./data` (a SQLite database plus generated PDFs). Back it up by copying the folder; delete it (or use *Start over*) to reset.
 - Your API keys live only in `.env`.
 - Company careers boards to scan are listed in `config/companies.json`. Add your own in `config/companies.local.json` (same format; not tracked by git).
 
 ## Notes and limits
 
-- LinkedIn is searched through its public, logged-out job pages, politely and at personal scale. Use it responsibly.
+- LinkedIn is searched through its public, logged-out job pages, politely and at personal scale. Use it responsibly. Each extra country adds its own searches, so the daily search takes longer.
 - Indeed blocks automated access, so it isn't searched. Add jobs from Indeed by hand.
 - Adzuna only shares a short snippet of each ad; paste the full description into the job before preparing it.
 - Sponsor registers are checked by company name, so matches are marked *licensed* (exact) or *probably licensed* (close). Check the name shown on the job.
@@ -72,4 +90,4 @@ bun run dev:web    # web app on :5480, proxied to the API
 bun run check      # type-check server and web
 ```
 
-MIT licensed.
+MIT licensed. If it helps you, a star on GitHub is appreciated.
