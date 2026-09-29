@@ -2,7 +2,7 @@
 import type { Job } from "./db";
 import { COUNTRIES, type CountryCode, OTHER_PLACES, prefsFor, searchCountries, type Settings } from "./settings";
 import type { SponsorMatch } from "./sponsors";
-import { titleWanted } from "./match";
+import { levelText, staffIsLevel, titleWanted } from "./match";
 
 // languages/platforms that usually define a role; only counted as "off-stack" when the user doesn't list them
 const COMMON_STACKS = [".net", "c#", "c++", "rust", "scala", "kotlin", "swift", "ruby", "elixir", "php", "java", "python", "golang", "salesforce", "sap", "embedded", "ios", "android", "unity", "angular", "vue", "flutter"];
@@ -115,19 +115,20 @@ export function score(j: Job, sponsor: SponsorMatch, st: Settings): Scored {
   const targets = st.targetRoles.join(" ").toLowerCase();
 
   // role and level fit
-  const roleWords = new Set(st.targetRoles.flatMap(words).filter((w) => !["senior", "junior", "lead", "staff", "principal"].includes(w)));
+  const roleWords = new Set(st.targetRoles.flatMap((r) => words(r).filter((w) => !["senior", "junior", "lead", "principal"].includes(w) && !(w === "staff" && staffIsLevel(r)))));
   const overlap = words(title).filter((w) => roleWords.has(w)).length;
   if (st.targetRoles.length && !titleWanted(j.title)) { s -= 30; reasons.push("− not one of your target roles"); }
   else if (overlap >= 2) { s += 10; reasons.push("+ matches a role you're targeting"); }
   else if (overlap === 1) { s += 4; reasons.push("~ partly matches your target roles"); }
-  const seniorTitle = /\b(senior|sr\.?|staff|lead|principal|founding)\b/.test(title);
+  const lvl = levelText(title);
+  const seniorTitle = /\b(senior|sr\.?|staff|lead|principal|founding)\b/.test(lvl);
   const juniorTitle = /\b(junior|graduate|intern|apprentice|entry|mid[- ]level|associate)\b/.test(title);
   if (["senior", "staff", "lead"].includes(st.seniority)) {
     if (seniorTitle) { s += 10; reasons.push("+ at your level"); }
     if (juniorTitle) { s -= 40; reasons.push("− below your level"); }
   } else if (st.seniority === "junior" || st.seniority === "mid") {
     if (juniorTitle || (!seniorTitle && st.seniority === "mid")) { s += 10; reasons.push("+ at your level"); }
-    if (/\b(staff|principal|lead|head of|director)\b/.test(title)) { s -= 30; reasons.push("− well above your level"); }
+    if (/\b(staff|principal|lead|head of|director)\b/.test(lvl)) { s -= 30; reasons.push("− well above your level"); }
   }
   if (/\b(head of|director|vp|vice president|cto)\b/.test(title) && !/head|director|vp|cto/.test(targets)) { s -= 15; reasons.push("− exec title, stretch"); }
   const otherDiscipline = DISCIPLINES.filter((d) => has(title, d) && !targets.includes(d));
