@@ -34,6 +34,9 @@ export type CvImport = {
   suggested: Pick<Settings, "name" | "email" | "phone" | "links" | "homeCity" | "targetRoles" | "seniority" | "strongSkills" | "weakSkills"> & { country: string; currentEmployer: string };
 };
 
+export type JobDraft = { url: string; title: string; company: string; location?: string | null; work_mode?: string | null; salary_text?: string | null; posted_at?: string | null; description?: string | null };
+export type FetchedJob = { ok: true; job: JobDraft; via: string } | { ok: false; blocked: boolean; error: string };
+
 export type JobRow = {
   id: number; source: string; url: string; title: string; company: string; location: string | null; country: Country | null; work_mode: string | null;
   salary_text: string | null; salary_min: number | null; salary_max: number | null; posted_at: string | null; is_agency: number;
@@ -81,7 +84,8 @@ export const api = {
   jobs: (p: Record<string, string>) => req<JobRow[]>(`/api/jobs?${new URLSearchParams(p)}`),
   job: (id: number) => req<JobFull>(`/api/jobs/${id}`),
   patchJob: (id: number, body: { status?: string; notes?: string; cover_letter?: string; description?: string; event?: string }) => req<{ ok: boolean }>(`/api/jobs/${id}`, json("PATCH", body)),
-  addJob: (body: Record<string, string>) => req<{ id: number }>("/api/jobs", json("POST", body)),
+  fetchJob: (body: { url?: string; text?: string }) => req<FetchedJob>("/api/jobs/fetch", json("POST", body)),
+  addJob: (body: JobDraft) => req<{ id: number; score: number; existing: boolean; status: string }>("/api/jobs", json("POST", body)),
   prepare: (id: number) => req<{ started: boolean }>(`/api/jobs/${id}/prepare`, { method: "POST" }),
 
   addAnswer: (jobId: number, body: { question: string; draft?: string }) => req<{ id: number }>(`/api/jobs/${jobId}/answers`, json("POST", body)),

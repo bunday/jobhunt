@@ -48,24 +48,30 @@ async function scanAppleCountry(country: CountryCode, say: (m: string) => void):
   }
   const out: Job[] = [];
   for (const h of hits.values()) {
-    const d = await hydration(`${BASE}/details/${h.id}`);
-    const jd = find(d, "minimumQualifications") as Record<string, string | boolean | { name: string }[]> | null;
+    const j = await appleJob(h.id, country, h);
     await sleep(800);
-    if (!jd) continue;
-    const section = (t: string, k: string) => (jd[k] ? `${t}\n${jd[k]}` : "");
-    out.push({
-      source: "apple",
-      source_id: h.id,
-      url: `${BASE}/details/${h.id}`,
-      title: String(jd.postingTitle ?? h.postingTitle).trim(),
-      company: "Apple",
-      country,
-      location: ((jd.locations as { name: string }[]) ?? h.locations ?? []).map((l) => l.name).join(" / "),
-      work_mode: jd.homeOffice === true ? "remote" : "unknown",
-      posted_at: h.postDateInGMT?.slice(0, 10) ?? null,
-      description: [jd.jobSummary, section("Description", "description"), section("Responsibilities", "responsibilities"), section("Minimum qualifications", "minimumQualifications"), section("Preferred qualifications", "preferredQualifications")].filter(Boolean).join("\n\n"),
-    });
+    if (j) out.push(j);
   }
   say(`apple (${COUNTRIES[country].name}): ${hits.size} matching roles`);
   return out;
+}
+
+/** One Apple job from its details page (also used for a pasted jobs.apple.com link). */
+export async function appleJob(id: string, country: CountryCode | null, h?: Hit): Promise<Job | null> {
+  const d = await hydration(`${BASE}/details/${id}`);
+  const jd = find(d, "minimumQualifications") as Record<string, string | boolean | { name: string }[]> | null;
+  if (!jd) return null;
+  const section = (t: string, k: string) => (jd[k] ? `${t}\n${jd[k]}` : "");
+  return {
+    source: "apple",
+    source_id: id,
+    url: `${BASE}/details/${id}`,
+    title: String(jd.postingTitle ?? h?.postingTitle ?? "").trim(),
+    company: "Apple",
+    country,
+    location: ((jd.locations as { name: string }[]) ?? h?.locations ?? []).map((l) => l.name).join(" / "),
+    work_mode: jd.homeOffice === true ? "remote" : "unknown",
+    posted_at: h?.postDateInGMT?.slice(0, 10) ?? (typeof jd.postDateInGMT === "string" ? jd.postDateInGMT.slice(0, 10) : null),
+    description: [jd.jobSummary, section("Description", "description"), section("Responsibilities", "responsibilities"), section("Minimum qualifications", "minimumQualifications"), section("Preferred qualifications", "preferredQualifications")].filter(Boolean).join("\n\n"),
+  };
 }

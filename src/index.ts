@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { aiStatus } from "./ai";
 import { fileName, htmlToPdf, renderLetterHtml, renderPdf } from "./cv";
 import { importCv, pdfToText } from "./cvimport";
+import { aiRead, fetchJob } from "./fetchjob";
 import { db, logEvent, OUT_DIR, upsertJob, type Job } from "./db";
 import { polishAnswer } from "./polish";
 import { prepareJob } from "./prepare";
@@ -147,7 +148,8 @@ const app = new Elysia()
     const where: string[] = [];
     const args: (string | number)[] = [];
     if (query.status) { where.push(`status IN (${query.status.split(",").map(() => "?").join(",")})`); args.push(...query.status.split(",")); }
-    if (query.minScore) { where.push("score >= ?"); args.push(Number(query.minScore)); }
+    // jobs the user added themselves (and the one just opened) show whatever their score
+    if (query.minScore) { where.push("(score >= ? OR id = ? OR EXISTS (SELECT 1 FROM events e WHERE e.job_id = jobs.id AND e.detail = 'added manually'))"); args.push(Number(query.minScore), Number(query.include ?? 0)); }
     if (query.country) { where.push("COALESCE(country, ?) = ?"); args.push(getSettings().country, query.country); }
     if (query.q) { where.push("(title LIKE ? OR company LIKE ?)"); args.push(`%${query.q}%`, `%${query.q}%`); }
     return db.query(`SELECT ${LIST_COLS} FROM jobs ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY score DESC, first_seen DESC LIMIT 300`).all(...args);
@@ -180,14 +182,39 @@ const app = new Elysia()
     if (body.event) logEvent(id, "note", body.event);
     return { ok: true };
   }, { body: t.Object({ status: t.Optional(t.Union(STATUSES.map((s) => t.Literal(s)))), notes: t.Optional(t.String()), cover_letter: t.Optional(t.String()), description: t.Optional(t.String()), event: t.Optional(t.String()) }) })
+  .post("/api/jobs/fetch", async ({ body }) => {
+    // "Add a job": read the ad from its link (or from a pasted description when the site blocks reading)
+    if (body.text?.trim()) {
+      const j = await aiRead(body.text.trim(), body.url ?? "").catch(() => null);
+      if (!j) return { ok: false, blocked: false, error: "Couldn't find a job advert in that text. Paste the whole ad, including the title and company." };
+      return { ok: true, via: "your pasted text", job: { ...j, description: body.text.trim() } };
+    }
+    return fetchJob(body.url ?? "");
+  }, { body: t.Object({ url: t.Optional(t.String()), text: t.Optional(t.String()) }) })
   .post("/api/jobs", ({ body }) => {
-    // manual add (e.g. a job found on another site): scored like everything else
-    const j: Job = { source: "manual", source_id: body.url, url: body.url, title: body.title, company: body.company, location: body.location ?? null, work_mode: body.work_mode ?? "unknown", salary_text: body.salary_text ?? null, description: body.description ?? null };
+    // save a job the user added (after checking the preview): scored like everything else, and always shown in Discover
+    const url = body.url.trim();
+    const liId = url.match(/linkedin\.com\/jobs\/view\/(?:[^/]*?-)?(\d{6,})/)?.[1] ?? url.match(/currentJobId=(\d+)/)?.[1];
+    const found = (url && db.query("SELECT id, status FROM jobs WHERE url = ? OR source_id = ? LIMIT 1").get(url, url))
+      ?? (liId ? db.query("SELECT id, status FROM jobs WHERE source = 'linkedin' AND source_id = ?").get(liId) : null);
+    if (found) {
+      const f = found as { id: number; status: string };
+      if (f.status === "duplicate") db.query("UPDATE jobs SET status = 'new' WHERE id = ?").run(f.id);
+      logEvent(f.id, "note", "added manually");
+      const r = db.query("SELECT score FROM jobs WHERE id = ?").get(f.id) as { score: number };
+      return { id: f.id, score: r.score, existing: true, status: f.status === "duplicate" ? "new" : f.status };
+    }
+    const j: Job = {
+      source: "manual", source_id: url || `pasted:${Date.now()}`, url, title: body.title.trim(), company: body.company.trim(),
+      location: body.location ?? null, work_mode: body.work_mode || "unknown", salary_text: body.salary_text || null,
+      posted_at: body.posted_at || null, description: body.description ?? null,
+    };
     const { id } = upsertJob(finalise(j));
     logEvent(id, "note", "added manually");
     markDuplicates();
-    return { id };
-  }, { body: t.Object({ url: t.String(), title: t.String(), company: t.String(), location: t.Optional(t.String()), work_mode: t.Optional(t.String()), salary_text: t.Optional(t.String()), description: t.Optional(t.String()) }) })
+    const r = db.query("SELECT score FROM jobs WHERE id = ?").get(id) as { score: number };
+    return { id, score: r.score, existing: false, status: "new" };
+  }, { body: t.Object({ url: t.String(), title: t.String({ minLength: 1 }), company: t.String({ minLength: 1 }), location: t.Optional(t.Nullable(t.String())), work_mode: t.Optional(t.Nullable(t.String())), salary_text: t.Optional(t.Nullable(t.String())), posted_at: t.Optional(t.Nullable(t.String())), description: t.Optional(t.Nullable(t.String())) }) })
   .post("/api/jobs/:id/prepare", ({ params }) => {
     const id = Number(params.id);
     const cur = db.query("SELECT prep_state FROM jobs WHERE id = ?").get(id) as { prep_state: string | null } | null;

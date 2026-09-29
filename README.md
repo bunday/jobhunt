@@ -65,7 +65,7 @@ Smaller or local models work, but write weaker cover letters and are more likely
 - Want it? Click **Shortlist**. The job moves to **Applications**, where you prepare it.
 - Not for you? Click **Skip** and it moves to **Closed**.
 
-Found a job somewhere else? Use **Add a job** in Discover and paste the description; it's scored like everything else.
+Found a job somewhere else? Use **Add a job** in Discover and paste the link. The title, company, location, salary and description are read from the site: LinkedIn, Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Apple directly, most other careers pages through the job data they publish for Google, and anything else by the AI reading the page. Check the preview, then add it. It's scored like everything else and always shows in Discover, whatever its score. A few sites block automatic reading (Indeed, Glassdoor, Reed, Totaljobs and similar); for those, open the ad and paste its text instead.
 
 ### 2. Prepare the application (Applications)
 

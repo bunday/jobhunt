@@ -1,6 +1,6 @@
-import { Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import { ClipboardPaste, Link2, Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api, type JobRow, type ScanStatus } from "@/api";
+import { api, type JobDraft, type JobRow, type ScanStatus } from "@/api";
 import { JobCard } from "@/components/JobCard";
 import { app } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,9 @@ const QUERY: Record<ListKind, { status: string; order?: string[] }> = {
   closed: { status: "rejected,skipped,closed" },
 };
 
-export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) {
+export function Jobs({ kind, focus: focusProp }: { kind: ListKind; focus: number | null }) {
+  const [added, setAdded] = useState<{ id: number; existing: boolean; status: string } | null>(null);
+  const focus = added?.id ?? focusProp;
   const [rows, setRows] = useState<JobRow[] | null>(null);
   const [q, setQ] = useState("");
   const [minScore, setMinScore] = useState("50");
@@ -24,7 +26,7 @@ export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) 
   const load = useCallback(async () => {
     const p: Record<string, string> = { status: QUERY[kind].status };
     if (q) p.q = q;
-    if (kind === "discover" && minScore) p.minScore = minScore;
+    if (kind === "discover" && minScore) { p.minScore = minScore; if (focus) p.include = String(focus); }
     if (country) p.country = country;
     const r = await api.jobs(p);
     const order = QUERY[kind].order;
@@ -67,7 +69,10 @@ export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) 
         )}
       </div>
       {kind === "discover" && scan?.scanning && <p className="text-sm text-muted-foreground">{scan.progress?.stage} · {scan.progress?.added ?? 0} new so far. New jobs appear here as they're found; refresh to see them.</p>}
-      {adding && <AddJob onDone={() => { setAdding(false); load(); }} />}
+      {adding && <AddJob onClose={() => setAdding(false)} onAdded={(r) => { setAdding(false); setQ(""); setAdded(r); }} />}
+      {added && <p className="text-sm text-muted-foreground">{added.status !== "new"
+        ? `You already have this job (${added.status}). Find it under ${["rejected", "skipped", "closed"].includes(added.status) ? "Closed" : "Applications"}.`
+        : added.existing ? "You already had this job, so it's opened below." : "Added. It's scored and opened below, and stays in Discover whatever its score."}</p>}
       {rows === null ? <p className="text-sm text-muted-foreground">Loading…</p>
         : rows.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">{kind === "discover" ? "No new jobs at this score. Try 'Everything', or search now." : kind === "applications" ? "Nothing here yet. Shortlist jobs from Discover." : "Nothing closed yet."}</p>
         : rows.map((r) => <JobCard key={`${r.id}-${r.status}-${focus === r.id}`} row={r} onChange={load} defaultOpen={focus === r.id} />)}
@@ -75,25 +80,93 @@ export function Jobs({ kind, focus }: { kind: ListKind; focus: number | null }) 
   );
 }
 
-function AddJob({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState({ url: "", title: "", company: "", location: "", salary_text: "", description: "" });
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+const MODES: Record<string, string> = { unknown: "Not stated", remote: "Remote", hybrid: "Hybrid", onsite: "On-site" };
+
+/** Paste a link → the ad is read from the site → check the preview → add. Blocked sites fall back to pasting the ad. */
+function AddJob({ onAdded, onClose }: { onAdded: (r: { id: number; existing: boolean; status: string }) => void; onClose: () => void }) {
+  const [url, setUrl] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState<"" | "read" | "add">("");
+  const [problem, setProblem] = useState<{ error: string; paste: boolean } | null>(null);
+  const [draft, setDraft] = useState<JobDraft | null>(null);
+  const [via, setVia] = useState("");
+  const [full, setFull] = useState(false);
+  const set = (k: keyof JobDraft) => (e: { target: { value: string } }) => setDraft((d) => d && { ...d, [k]: e.target.value });
+
+  const read = async (body: { url?: string; text?: string }) => {
+    setBusy("read"); setProblem(null);
+    try {
+      const r = await api.fetchJob(body);
+      if (r.ok) { setDraft({ ...r.job, url: r.job.url || url.trim() }); setVia(r.via); setFull(false); }
+      else setProblem({ error: r.error, paste: true });
+    } catch (e) { setProblem({ error: (e as Error).message, paste: true }); }
+    finally { setBusy(""); }
+  };
+  const add = async () => {
+    if (!draft) return;
+    setBusy("add");
+    try { onAdded(await api.addJob(draft)); }
+    catch (e) { setProblem({ error: (e as Error).message, paste: false }); setBusy(""); }
+  };
+
   return (
     <Card>
-      <CardContent className="grid gap-3 pt-5">
-        <p className="text-sm font-medium">Add a job you found elsewhere (Indeed, a company site, a referral…). It's scored like everything else.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Link to the ad"><Input value={f.url} onChange={set("url")} /></Field>
-          <Field label="Job title"><Input value={f.title} onChange={set("title")} /></Field>
-          <Field label="Company"><Input value={f.company} onChange={set("company")} /></Field>
-          <Field label="Location / remote"><Input value={f.location} onChange={set("location")} /></Field>
-          <Field label="Salary (optional)"><Input value={f.salary_text} onChange={set("salary_text")} /></Field>
+      <CardContent className="grid gap-4 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Add a job you found elsewhere</p>
+            <p className="text-sm text-muted-foreground">Paste the link to the ad. The details are read from the site and it's scored like everything else.</p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
         </div>
-        <Field label="Full job description"><Textarea rows={6} value={f.description} onChange={set("description")} /></Field>
-        <Button className="w-fit" disabled={!f.url || !f.title || !f.company} onClick={async () => {
-          await api.addJob({ ...f, work_mode: /remote/i.test(f.location) ? "remote" : /hybrid/i.test(f.location) ? "hybrid" : "unknown" });
-          onDone();
-        }}>Add and score</Button>
+        <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (url.trim()) { setDraft(null); read({ url }); } }}>
+          <Input className="min-w-64 flex-1" autoFocus placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Link to the job ad" />
+          <Button type="submit" disabled={!url.trim() || !!busy}>{busy === "read" ? <Loader2 className="animate-spin" /> : <Link2 />}Read job</Button>
+        </form>
+        {busy === "read" && <p className="text-sm text-muted-foreground">Reading the ad. Most sites take a couple of seconds; pages the AI has to read take up to a minute.</p>}
+
+        {problem && (
+          <div className="grid gap-3 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+            <p>{problem.error}</p>
+            {problem.paste && (
+              <>
+                <Textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="Open the ad in your browser, select all the text (title, company and description) and paste it here" />
+                <Button className="w-fit" variant="outline" disabled={text.trim().length < 200 || !!busy} onClick={() => read({ url, text })}>
+                  {busy === "read" ? <Loader2 className="animate-spin" /> : <ClipboardPaste />}Read pasted ad
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
+        {draft && (
+          <div className="grid gap-3 border-t pt-4">
+            <p className="text-sm text-muted-foreground">Read from <strong className="text-foreground">{via}</strong>. Check it and fix anything that's off.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Job title"><Input value={draft.title} onChange={set("title")} /></Field>
+              <Field label="Company"><Input value={draft.company} onChange={set("company")} /></Field>
+              <Field label="Location"><Input value={draft.location ?? ""} onChange={set("location")} /></Field>
+              <Field label="Working pattern">
+                <Select value={draft.work_mode ?? "unknown"} onChange={set("work_mode")}>
+                  {Object.entries(MODES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+              <Field label="Salary" hint="As written in the ad. Leave empty if it isn't stated."><Input value={draft.salary_text ?? ""} onChange={set("salary_text")} /></Field>
+            </div>
+            <Field label={`Description (${(draft.description ?? "").length.toLocaleString()} characters)`}>
+              {full
+                ? <Textarea rows={12} value={draft.description ?? ""} onChange={set("description")} />
+                : <div className="rounded-md border bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
+                    <p className="line-clamp-4 whitespace-pre-line">{draft.description || "No description found."}</p>
+                    <button type="button" className="mt-1 text-primary hover:underline" onClick={() => setFull(true)}>Show and edit all</button>
+                  </div>}
+            </Field>
+            <div className="flex items-center gap-3">
+              <Button disabled={!draft.title.trim() || !draft.company.trim() || !!busy} onClick={add}>{busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />}Add and score</Button>
+              {problem && !problem.paste && <span className="text-sm text-destructive">{problem.error}</span>}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

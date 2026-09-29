@@ -56,10 +56,10 @@ export async function search(o: SearchOpts): Promise<Card[]> {
   return out;
 }
 
-export async function detail(card: Card, workType?: number, nearHome = false, country?: string): Promise<Job> {
-  const html = (await get(`${BASE}/jobPosting/${card.id}`)) ?? "";
+export async function detail(card: Card, workType?: number, nearHome = false, country?: string, page?: string): Promise<Job> {
+  const html = page ?? (await get(`${BASE}/jobPosting/${card.id}`)) ?? "";
   const desc = html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>/)?.[1];
-  const salary = html.match(/salary[^>]*>\s*([^<]*£[^<]*)</)?.[1]?.trim() ?? null;
+  const salary = html.match(/salary[^>]*>\s*([^<]*[£$€₺][^<]*)</)?.[1]?.trim() ?? null;
   const industry = html.match(/Industries<\/h3>\s*<span[^>]*>\s*([\s\S]*?)\s*</)?.[1] ?? "";
   return {
     source: "linkedin",
@@ -76,4 +76,17 @@ export async function detail(card: Card, workType?: number, nearHome = false, co
     near_home: nearHome ? 1 : 0,
     country: country ?? null,
   };
+}
+
+/** One job from its id alone (a pasted linkedin.com/jobs/view/... link): the card fields come from the posting page. */
+export async function postingById(id: string): Promise<Job | null> {
+  const html = await get(`${BASE}/jobPosting/${id}`);
+  const title = html?.match(/top-card-layout__title[^>]*>([^<]+)</)?.[1]?.trim();
+  if (!html || !title) return null;
+  const company = html.match(/topcard__org-name-link[^>]*>\s*([^<]+?)\s*</)?.[1] ?? html.match(/topcard__flavor">\s*([^<]+?)\s*</)?.[1] ?? "";
+  const location = html.match(/topcard__flavor--bullet">\s*([^<]+?)\s*</)?.[1] ?? "";
+  const card: Card = { id, url: `https://www.linkedin.com/jobs/view/${id}`, title: decode(title), company: decode(company), location: decode(location), posted: null };
+  const j = await detail(card, undefined, false, undefined, html);
+  const d = j.description ?? "";
+  return { ...j, work_mode: /\bfully remote\b|\bremote[- ]first\b|\(remote\)/i.test(`${title} ${location}`) ? "remote" : /\bhybrid\b/i.test(`${title} ${location} ${d.slice(0, 1500)}`) ? "hybrid" : "unknown" };
 }
