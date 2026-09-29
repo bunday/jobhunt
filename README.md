@@ -58,14 +58,46 @@ Smaller or local models work, but write weaker cover letters and are more likely
 
 ## Everyday use
 
-1. **Overview** shows your job pool (how many found, new, good and strong matches), where every application stands, and what needs your attention.
-2. **Discover** lists new jobs, best first. Open one to see why it scored the way it did, then shortlist or skip. Searching several countries? Filter by country.
-3. **Prepare**: on a shortlisted job, click *Prepare application*. You get a tailored CV, a cover letter you can edit, and a fit review. Answer its questions to strengthen this and future applications.
-4. **Apply** on the employer's site yourself, then set the job's status to *Applied*.
+### 1. Find jobs you want (Discover)
 
-Found a job somewhere else? Use *Add a job* in Discover and paste the description.
+**Discover** lists new jobs, best match first. Click a job to open it: you'll see why it scored the way it did (every point has a reason), and a link to the original ad. Searching several countries? Filter by country.
 
-Everything you set up can be changed later in **Settings**: roles, countries, pay, your master CV, your saved answers. **Settings → Start over** wipes everything and takes you back to setup.
+- Want it? Click **Shortlist**. The job moves to **Applications**, where you prepare it.
+- Not for you? Click **Skip** and it moves to **Closed**.
+
+Found a job somewhere else? Use **Add a job** in Discover and paste the description; it's scored like everything else.
+
+### 2. Prepare the application (Applications)
+
+Open the job in **Applications** and click **Prepare application**. In a minute or two you get:
+
+- **A tailored CV**: picked and reordered from your master CV to fit this job. Nothing is invented. Open it or download it as a PDF.
+- **A cover letter**: edit it right there (it saves as you type), copy it, or download it as a PDF on the same letterhead as your CV.
+- **A fit review**: how well you match, the gaps against the ad, and watch-outs such as office days, salary or sponsorship.
+
+The review also asks **"To make this stronger"** questions, for example *"Do you have a number for that result?"* or *"Have you used this tool?"*:
+
+- Answer the ones you can; **skip any you'd rather not**. A plain "No" is useful too: it stops the AI hinting at something you haven't done.
+- Your answers are **saved to your profile and reused for every future application**, so you're rarely asked the same thing twice. See and edit them any time in **Settings → My answers**.
+- Click **Prepare again** to rebuild the CV and letter with your answers included.
+
+### 3. Answer the application form (Applications)
+
+Most job portals ask their own questions (*"Why do you want to work here?"*, *"Tell us about a project you're proud of"*). For each one:
+
+1. Paste the **question from the portal** and your **rough answer** (a few honest notes are enough) into *Application questions*, and click **Add question**.
+2. Click **Polish**. The AI turns your notes into a clear, specific answer, using only your CV and your saved answers, in your own voice.
+3. Copy the **Ready to paste** answer into the portal. If it suggests something that would make the answer stronger, answer it and click **Polish again**.
+
+### 4. Apply and track
+
+Apply on the employer's site yourself, then set the job's status to **Applied**. As things move, update it to **Interview**, **Offer** or **Rejected**, and keep notes (recruiter names, dates) on the job.
+
+**Overview** shows the whole picture: your job pool, every application and its stage, and what needs your attention (jobs waiting to be prepared, questions not yet polished, applications worth following up).
+
+### Settings
+
+Everything from setup can be changed later: roles, countries, pay and sponsorship, your master CV, your saved answers and writing rules. **Settings → Start over** wipes everything and takes you back to setup.
 
 ## Your data
 
