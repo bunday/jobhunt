@@ -40,8 +40,25 @@ Write the whole "review" in the second person ("You match...", "Have you...?"). 
 
 type Out = { spec: Spec; cover_letter: string; review: { fit: string; fit_reason: string; gaps: string[]; suggestions: string[]; watch_outs: string[] } };
 
+/** Models differ in shape: some send a list where text is expected ("skills": ["a", "b"]). Turn values into text. */
+const asText = (v: unknown): string | undefined =>
+  typeof v === "string" ? v : Array.isArray(v) ? v.filter((x) => typeof x === "string" || typeof x === "number").join(", ") : typeof v === "number" ? String(v) : undefined;
+const asIds = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+const textMap = (v: unknown): Record<string, string> | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, asText(x)]).filter((e): e is [string, string] => !!e[1])) : undefined;
+
 /** Drop anything the model referenced that isn't in the master CV, so a tailored CV can never contain invented items. */
-function validate(spec: Spec): Spec {
+function validate(raw: Spec): Spec {
+  const spec: Spec = {
+    headline: asText(raw.headline),
+    profile: asText(raw.profile),
+    skills: asIds(raw.skills),
+    skillText: textMap(raw.skillText),
+    bullets: raw.bullets && typeof raw.bullets === "object" ? Object.fromEntries(Object.entries(raw.bullets).map(([k, v]) => [k, asIds(v) ?? []])) : undefined,
+    rewrite: textMap(raw.rewrite),
+    projects: asIds(raw.projects),
+    community: asIds(raw.community),
+  };
   const m = getMasterCV();
   const labels = new Set(m.skills.map(([k]) => k));
   const bulletIds = new Map(m.experience.map((e) => [e.id, new Set(e.bullets.map((b) => b.id))]));
@@ -90,6 +107,9 @@ export async function prepareJob(jobId: number): Promise<void> {
       spec = next;
       r = await renderJobCv(jobId, spec);
     }
+    const list = (v: unknown) => (Array.isArray(v) ? v.map(asText).filter((x): x is string => !!x) : typeof v === "string" ? [v] : []);
+    out.review = { fit: asText(out.review?.fit) ?? "reasonable", fit_reason: asText(out.review?.fit_reason) ?? "", gaps: list(out.review?.gaps), suggestions: list(out.review?.suggestions), watch_outs: list(out.review?.watch_outs) };
+    out.cover_letter = asText(out.cover_letter) ?? "";
     // belt and braces: drop suggestions that re-ask something already answered (even reworded)
     const answered = (db.query("SELECT question FROM facts").all() as { question: string }[]).map((f) => f.question);
     out.review.suggestions = (out.review.suggestions ?? []).filter((q) => !answered.some((a) => sameQuestion(a, q)));

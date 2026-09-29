@@ -63,7 +63,12 @@ export async function importCv(text: string): Promise<CvImport> {
   cv.experience = (cv.experience ?? []).map((e) => ({ ...e, id: uniq(e.id || e.company), sub: e.sub ?? "", bullets: (e.bullets ?? []).map((b) => ({ ...b, id: uniq(b.id || b.text.slice(0, 20)) })) }));
   cv.projects = (cv.projects ?? []).map((b) => ({ ...b, id: uniq(b.id || b.text.slice(0, 20)) }));
   cv.community = (cv.community ?? []).map((b) => ({ ...b, id: uniq(b.id || b.text.slice(0, 20)) }));
-  cv.skills = cv.skills ?? [];
-  cv.education = cv.education ?? [];
+  // some models send lists where the CV expects one line of text
+  const asText = (v: unknown) => (Array.isArray(v) ? v.join(", ") : v == null ? "" : String(v));
+  const pair = (r: unknown): [string, string] => (Array.isArray(r) ? [asText(r[0]), asText(r.slice(1).length > 1 ? r.slice(1) : r[1])] : r && typeof r === "object" ? [asText(Object.values(r)[0]), asText(Object.values(r)[1])] : [asText(r), ""]);
+  cv.skills = (cv.skills ?? []).map(pair);
+  cv.education = (cv.education ?? []).map(pair);
+  for (const k of ["name", "headline", "profile"] as const) cv[k] = asText(cv[k]);
+  cv.contact = (cv.contact ?? []).map(asText);
   return { cv, suggested: out.suggested };
 }

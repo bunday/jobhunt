@@ -30,7 +30,8 @@ export async function polishAnswer(answerId: number): Promise<void> {
     ].join("\n\n");
     const json = await generateJson<{ answer: string; suggestions?: string[] }>(system(), prompt);
     const answered = (db.query("SELECT question FROM facts").all() as { question: string }[]).map((f) => f.question);
-    const suggestions = (json.suggestions ?? []).filter((q) => !answered.some((x) => sameQuestion(x, q)));
+    if (typeof json.answer !== "string") json.answer = Array.isArray(json.answer) ? (json.answer as unknown[]).join("\n\n") : String(json.answer ?? "");
+    const suggestions = (Array.isArray(json.suggestions) ? json.suggestions.filter((q): q is string => typeof q === "string") : []).filter((q) => !answered.some((x) => sameQuestion(x, q)));
     db.query("UPDATE answers SET answer = ?, suggestions = ?, polish_state = NULL, updated_at = datetime('now') WHERE id = ?")
       .run(json.answer.trim(), JSON.stringify(suggestions), answerId);
   } catch (e) {

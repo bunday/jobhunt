@@ -22,7 +22,8 @@ export type Spec = {
 };
 
 const FONTS = `${import.meta.dir}/../assets/fonts`;
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// never crash a PDF on a stray list or number from an AI model or a hand-edited CV
+const esc = (v: unknown) => (Array.isArray(v) ? v.join(", ") : v == null ? "" : String(v)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const font = (w: number, st: string) => `@font-face{font-family:Carlito;font-weight:${w};font-style:${st};src:url(file://${FONTS}/Carlito-${w}-${st}.ttf)}`;
 
 /** The name + contact line printed on every document, from the user's settings (falls back to the CV). */
