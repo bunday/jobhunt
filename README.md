@@ -51,7 +51,7 @@ AI is only used to import your CV, prepare applications and polish answers. Set 
 | Provider | Settings | Notes |
 |---|---|---|
 | Anthropic API | `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` | Best results. Default model `claude-opus-5`. |
-| OpenAI-compatible | `AI_PROVIDER=openai`, `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` | OpenAI, OpenRouter, Gemini, Groq, Mistral, or local models via Ollama. |
+| OpenAI-compatible | `AI_PROVIDER=openai`, `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` | OpenAI, DeepSeek, OpenRouter, Gemini, Groq, Mistral, or local models via Ollama. DeepSeek: `AI_BASE_URL=https://api.deepseek.com`, `AI_MODEL=deepseek-chat`. |
 | Claude subscription | `AI_PROVIDER=claude-cli`, `CLAUDE_CODE_OAUTH_TOKEN`, `INSTALL_CLAUDE_CLI=true` | Uses Claude Code with your Claude plan. Get a token with `claude setup-token`. |
 
 Smaller or local models work, but write weaker cover letters and are more likely to stretch the truth. **Always read a cover letter before sending it.** Tailored CVs are safer: the server rejects anything that isn't in your master CV.
